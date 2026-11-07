@@ -80,7 +80,7 @@
   <div id="examples">
     <button class="example" data-p="赛博朋克城市，速度快，障碍密集">赛博朋克·跑酷</button>
     <button class="example" data-p="森林里轻松悠闲的跑酷">森林·跑酷</button>
-    <button class="example" data-p="做一个简单的2D塔防，怪物很多">2D·塔防</button>
+    <button class="example" data-p="做一个2D塔防游戏，怪物很多">2D·塔防</button>
   </div>
 </div>
 
@@ -116,6 +116,7 @@ const THEMES = {
   snow:    { bg:0x101820, ground:0xdfe9f5, player:0x4ea1ff, obstacle:0x3a6ea5, light:0xffffff, ambient:0.8 },
   space:   { bg:0x000000, ground:0x0a0a15, player:0xff9f43, obstacle:0x9b59ff, light:0xaaccff, ambient:0.2 }
 };
+
 let config = { gameType:'parkour', theme:'default', title:'默认游戏', speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200, waves:5, enemyHp:100, coins:200 };
 let state = 'ready';
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
@@ -166,24 +167,25 @@ function build3DScene() {
 
 function update3D(dt, time) {
   if (state !== 'playing') return;
+  const speed = config.speed || 14; // 防呆：如果AI没给速度，默认14
   if (keys.left) p3dX -= 10 * dt; if (keys.right) p3dX += 10 * dt;
   p3dX = Math.max(-5, Math.min(5, p3dX));
-  if (!p3dGround) { p3dVY -= config.gravity * dt; p3dY += p3dVY * dt; if (p3dY <= 1) { p3dY = 1; p3dVY = 0; p3dGround = true; } }
+  if (!p3dGround) { p3dVY -= (config.gravity||26) * dt; p3dY += p3dVY * dt; if (p3dY <= 1) { p3dY = 1; p3dVY = 0; p3dGround = true; } }
   player3d.position.set(p3dX, p3dY, 0); player3d.rotation.y += dt * 2;
   
   for (let i = obstacles.length - 1; i >= 0; i--) {
-    const o = obstacles[i]; o.position.z += config.speed * dt; o.rotation.x += dt; o.rotation.y += dt;
+    const o = obstacles[i]; o.position.z += speed * dt; o.rotation.x += dt; o.rotation.y += dt;
     if (o.position.z > 8) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); obstacles.splice(i, 1); }
   }
-  p3dTimer -= dt; if (p3dTimer <= 0) { spawnObstacle3D(); p3dTimer = 0.9 / Math.max(0.2, config.density); }
+  p3dTimer -= dt; if (p3dTimer <= 0) { spawnObstacle3D(); p3dTimer = 0.9 / Math.max(0.2, (config.density||0.7)); }
   
   for (const o of obstacles) {
     if (Math.abs(o.position.x - player3d.position.x) < o.userData.hw + 0.4 && Math.abs(o.position.y - player3d.position.y) < o.userData.hh + 0.8 && Math.abs(o.position.z - player3d.position.z) < 1.0) {
       state = 'over'; showOverlay('💥 撞到了！', `得分 ${p3dScore}`); return;
     }
   }
-  p3dDist += config.speed * dt; p3dScore = Math.floor(p3dDist / 2); updateHUD3D();
-  if (p3dScore >= config.targetScore) { state = 'win'; showOverlay('🎉 通关！', `你完成了《${config.title}》`); }
+  p3dDist += speed * dt; p3dScore = Math.floor(p3dDist / 2); updateHUD3D();
+  if (p3dScore >= (config.targetScore||200)) { state = 'win'; showOverlay('🎉 通关！', `你完成了《${config.title}》`); }
 }
 function spawnObstacle3D() {
   const t = THEMES[config.theme] || THEMES.default, size = 1 + Math.random() * 1.2;
@@ -191,7 +193,9 @@ function spawnObstacle3D() {
   mesh.position.set((Math.random() - 0.5) * 8, size, -100);
   mesh.userData = { hw: size, hh: size }; scene.add(mesh); obstacles.push(mesh);
 }
-function updateHUD3D() { document.getElementById('score').textContent = p3dScore; document.getElementById('target').textContent = config.targetScore; }
+function updateHUD3D() { 
+  document.getElementById('hud-main').innerHTML = `得分 <span class="big">${p3dScore}</span> / <span>${config.targetScore||200}</span>`;
+}
 
 
 // ==========================================
@@ -200,7 +204,7 @@ function updateHUD3D() { document.getElementById('score').textContent = p3dScore
 const canvas2d = document.getElementById('canvas2d');
 const ctx = canvas2d.getContext('2d');
 let enemies2d = [], towers2d = [], bullets2d = [];
-let game2dRunning = false, coins2d = 0, baseHp2d = 100, wave2d = 0, spawnTimer2d = 0, lastTime2d = 0;
+let game2dRunning = false, coins2d = 0, baseHp2d = 100, wave2d = 1, spawnTimer2d = 0, spawnedCount2d = 0;
 
 function resize2D() { canvas2d.width = window.innerWidth; canvas2d.height = window.innerHeight; }
 function build2DScene() {
@@ -209,6 +213,8 @@ function build2DScene() {
   baseHp2d = 100; wave2d = 1;
   enemies2d = []; towers2d = []; bullets2d = [];
   game2dRunning = true;
+  spawnTimer2d = 0;
+  spawnedCount2d = 0;
 }
 
 // 点击建塔
@@ -217,7 +223,7 @@ canvas2d.addEventListener('pointerdown', (e) => {
   const x = e.clientX, y = e.clientY;
   if (coins2d >= 50) {
     coins2d -= 50;
-    towers2d.push({ x, y, range: 100, cooldown: 0 });
+    towers2d.push({ x, y, range: 120, cooldown: 0 });
   }
 });
 
@@ -232,10 +238,20 @@ function update2D(dt) {
 
   // 生成怪物
   spawnTimer2d -= dt;
-  if (spawnTimer2d <= 0 && wave2d <= config.waves) {
-    enemies2d.push({ x: canvas2d.width + 20, y: canvas2d.height / 2, hp: config.enemyHp, maxHp: config.enemyHp, speed: 40 + wave2d * 10 });
-    spawnTimer2d = 1.5;
-    if (enemies2d.length % 5 === 0) wave2d++;
+  const maxWaves = config.waves || 5;
+  const totalEnemies = maxWaves * 5;
+  
+  if (spawnTimer2d <= 0 && spawnedCount2d < totalEnemies) {
+    spawnedCount2d++;
+    enemies2d.push({ 
+        x: canvas2d.width + 20, 
+        y: canvas2d.height / 2, 
+        hp: config.enemyHp || 100, 
+        maxHp: config.enemyHp || 100, 
+        speed: 30 + wave2d * 10 
+    });
+    spawnTimer2d = 1.0;
+    if (spawnedCount2d % 5 === 0) wave2d++;
   }
 
   // 更新怪物
@@ -252,7 +268,7 @@ function update2D(dt) {
     t.cooldown -= dt;
     if (t.cooldown <= 0) {
       const target = enemies2d.find(e => Math.hypot(e.x - t.x, e.y - t.y) < t.range);
-      if (target) { bullets2d.push({ x: t.x, y: t.y, target, speed: 300, dmg: 25 }); t.cooldown = 0.8; }
+      if (target) { bullets2d.push({ x: t.x, y: t.y, target, speed: 400, dmg: 50 }); t.cooldown = 0.5; }
     }
     ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(t.x, t.y, 15, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(0,255,255,0.2)'; ctx.beginPath(); ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2); ctx.stroke();
@@ -263,19 +279,22 @@ function update2D(dt) {
     const b = bullets2d[i];
     if (!b.target || b.target.hp <= 0) { bullets2d.splice(i, 1); continue; }
     const dx = b.target.x - b.x, dy = b.target.y - b.y, dist = Math.hypot(dx, dy);
-    if (dist < 15) { b.target.hp -= b.dmg; bullets2d.splice(i, 1); }
+    if (dist < 20) { b.target.hp -= b.dmg; bullets2d.splice(i, 1); }
     else { b.x += (dx / dist) * b.speed * dt; b.y += (dy / dist) * b.speed * dt; }
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
   }
 
   // 清理死怪
   enemies2d = enemies2d.filter(e => e.hp > 0);
   
+  // 胜利判定
+  if (spawnedCount2d >= totalEnemies && enemies2d.length === 0 && state === 'playing') {
+      state = 'win'; game2dRunning = false; showOverlay('🎉 防守成功！', `你抵挡住了所有怪物！`); return;
+  }
+
   // HUD
-  document.getElementById('score').textContent = `金币:${coins2d} 生命:${baseHp2d}`;
-  document.getElementById('target').textContent = `波次:${wave2d}/${config.waves}`;
   document.getElementById('hud-main').innerHTML = `<span class="big">${baseHp2d} HP</span> | 金币 ${coins2d}`;
-  document.getElementById('target').textContent = "";
+  document.getElementById('status').textContent = `波次: ${wave2d}/${maxWaves} | 点击屏幕建塔(50金币)`;
 }
 
 
@@ -321,8 +340,8 @@ document.getElementById('left').addEventListener('touchstart', () => keys.left=t
 document.getElementById('left').addEventListener('touchend', () => keys.left=false);
 document.getElementById('right').addEventListener('touchstart', () => keys.right=true);
 document.getElementById('right').addEventListener('touchend', () => keys.right=false);
-document.getElementById('jump').addEventListener('touchstart', () => { if(state==='playing' && config.gameType==='parkour' && p3dGround) { p3dVY = config.jumpForce; p3dGround = false; } });
-document.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true; if (e.code === 'Space' && state === 'playing' && config.gameType === 'parkour' && p3dGround) { e.preventDefault(); p3dVY = config.jumpForce; p3dGround = false; } });
+document.getElementById('jump').addEventListener('touchstart', () => { if(state==='playing' && config.gameType==='parkour' && p3dGround) { p3dVY = config.jumpForce||9; p3dGround = false; } });
+document.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true; if (e.code === 'Space' && state === 'playing' && config.gameType === 'parkour' && p3dGround) { e.preventDefault(); p3dVY = config.jumpForce||9; p3dGround = false; } });
 document.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false; });
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); resize2D();
@@ -365,7 +384,24 @@ async function generate() {
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '生成失败');
-    config = data; saveHistory(text, config);
+    
+    config = data; 
+    
+    // 🚨 绝对防御：不管AI怎么回答，只要用户说了塔防，强转塔防
+    if (text.includes('塔防') || text.includes('防御')) {
+        config.gameType = 'tower';
+        config.theme = config.theme || 'default';
+        config.title = config.title || '塔防游戏';
+        config.waves = config.waves || 5;
+        config.enemyHp = config.enemyHp || 100;
+        config.coins = config.coins || 200;
+    } else {
+        config.gameType = 'parkour';
+        config.speed = config.speed || 14;
+        config.targetScore = config.targetScore || 200;
+    }
+
+    saveHistory(text, config);
   } catch (err) {
     alert('AI生成失败：' + err.message); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏'; return;
   }
