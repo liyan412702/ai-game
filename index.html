@@ -115,6 +115,7 @@ const THEMES = {
   default: { bg:0x050508, ground:0x1b1b2a, player:0x4ea1ff, obstacle:0xff5c8a, light:0xffffff, ambient:0.4 },
   cyber:   { bg:0x050510, ground:0x111128, player:0x00ffff, obstacle:0xff0066, light:0x8888ff, ambient:0.3 }
 };
+
 let config = { 
     gameType:'parkour', theme:'default', title:'默认游戏', 
     speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200, 
@@ -122,16 +123,26 @@ let config = {
     hairColor: '#ff0066', clothesColor: '#00ffff', pantsColor: '#ffcc00',
     enemyCount: 10, playerHp: 100
 };
+
 let state = 'ready';
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
 const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main');
 
-function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
-function hideOverlay() { overlay.classList.remove('show'); }
-ovBtn.addEventListener('click', () => { hideOverlay(); startGame(); });
+function showOverlay(title, desc) { 
+    ovTitle.textContent = title; 
+    ovDesc.textContent = desc; 
+    overlay.classList.add('show'); 
+}
+function hideOverlay() { 
+    overlay.classList.remove('show'); 
+}
+ovBtn.addEventListener('click', () => { 
+    hideOverlay(); 
+    startGame(); 
+});
 
 // ==========================================
-// 引擎一：3D 跑酷 (Three.js) - 简化保留
+// 引擎一：3D 跑酷 (Three.js)
 // ==========================================
 const canvas3d = document.getElementById('canvas3d');
 const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
@@ -142,125 +153,246 @@ const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerH
 camera.position.set(0, 6, 11); camera.lookAt(0, 1.5, -12);
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera)); composer.addPass(bloomPass);
+composer.addPass(new RenderPass(scene, camera)); 
+composer.addPass(bloomPass);
 
 let ground, player3d, ambientLight, dirLight, gridHelper;
 const obstacles = [];
 let p3dDist = 0, p3dScore = 0, p3dX = 0, p3dY = 1, p3dVY = 0, p3dGround = true, p3dTimer = 0;
 
 function build3DScene() {
-  for (const o of obstacles) scene.remove(o); obstacles.length = 0;
-  if (ground) scene.remove(ground); if (gridHelper) scene.remove(gridHelper);
-  if (player3d) scene.remove(player3d); if (ambientLight) scene.remove(ambientLight); if (dirLight) scene.remove(dirLight);
+  for (const o of obstacles) scene.remove(o); 
+  obstacles.length = 0;
+  if (ground) scene.remove(ground); 
+  if (gridHelper) scene.remove(gridHelper);
+  if (player3d) scene.remove(player3d); 
+  if (ambientLight) scene.remove(ambientLight); 
+  if (dirLight) scene.remove(dirLight);
 
   const t = THEMES[config.theme] || THEMES.default;
   scene.background = new THREE.Color(t.bg);
   ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 300), new THREE.MeshStandardMaterial({ color:t.ground }));
-  ground.rotation.x = -Math.PI / 2; ground.position.z = -140; scene.add(ground);
-  gridHelper = new THREE.GridHelper(300, 150, t.player, t.ground); gridHelper.position.z = -140; gridHelper.position.y = 0.01; scene.add(gridHelper);
+  ground.rotation.x = -Math.PI / 2; 
+  ground.position.z = -140; 
+  scene.add(ground);
+  
+  gridHelper = new THREE.GridHelper(300, 150, t.player, t.ground); 
+  gridHelper.position.z = -140; 
+  gridHelper.position.y = 0.01; 
+  scene.add(gridHelper);
+  
   player3d = new THREE.Mesh(new THREE.BoxGeometry(1, 1.6, 1), new THREE.MeshStandardMaterial({ color: t.player, emissive: t.player, emissiveIntensity: 1.5 }));
-  player3d.position.set(0, 1, 0); scene.add(player3d);
-  ambientLight = new THREE.AmbientLight(0xffffff, t.ambient); scene.add(ambientLight);
-  dirLight = new THREE.DirectionalLight(t.light, 1.5); dirLight.position.set(5, 15, 5); scene.add(dirLight);
+  player3d.position.set(0, 1, 0); 
+  scene.add(player3d);
+  
+  ambientLight = new THREE.AmbientLight(0xffffff, t.ambient); 
+  scene.add(ambientLight);
+  
+  dirLight = new THREE.DirectionalLight(t.light, 1.5); 
+  dirLight.position.set(5, 15, 5); 
+  scene.add(dirLight);
 }
 
 function update3D(dt) {
   if (state !== 'playing') return;
   const speed = config.speed || 14;
-  if (keys.left) p3dX -= 10 * dt; if (keys.right) p3dX += 10 * dt;
+  if (keys.left) p3dX -= 10 * dt; 
+  if (keys.right) p3dX += 10 * dt;
   p3dX = Math.max(-5, Math.min(5, p3dX));
-  if (!p3dGround) { p3dVY -= 26 * dt; p3dY += p3dVY * dt; if (p3dY <= 1) { p3dY = 1; p3dVY = 0; p3dGround = true; } }
-  player3d.position.set(p3dX, p3dY, 0); player3d.rotation.y += dt * 2;
+  
+  if (!p3dGround) { 
+      p3dVY -= 26 * dt; 
+      p3dY += p3dVY * dt; 
+      if (p3dY <= 1) { 
+          p3dY = 1; 
+          p3dVY = 0; 
+          p3dGround = true; 
+      } 
+  }
+  player3d.position.set(p3dX, p3dY, 0); 
+  player3d.rotation.y += dt * 2;
   
   for (let i = obstacles.length - 1; i >= 0; i--) {
-    const o = obstacles[i]; o.position.z += speed * dt;
-    if (o.position.z > 8) { scene.remove(o); obstacles.splice(i, 1); }
+    const o = obstacles[i]; 
+    o.position.z += speed * dt;
+    if (o.position.z > 8) { 
+        scene.remove(o); 
+        obstacles.splice(i, 1); 
+    }
   }
-  p3dTimer -= dt; if (p3dTimer <= 0) {
+  
+  p3dTimer -= dt; 
+  if (p3dTimer <= 0) {
     const size = 1 + Math.random() * 1.2;
-    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(size), new THREE.MeshStandardMaterial({ color: THEMES[config.theme].obstacle, wireframe: Math.random() > 0.5 }));
+    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(size), new THREE.MeshStandardMaterial({ color: THEMES[config.theme] ? THEMES[config.theme].obstacle : 0xff0066, wireframe: Math.random() > 0.5 }));
     mesh.position.set((Math.random() - 0.5) * 8, size, -100);
-    mesh.userData = { hw: size, hh: size }; scene.add(mesh); obstacles.push(mesh);
+    mesh.userData = { hw: size, hh: size }; 
+    scene.add(mesh); 
+    obstacles.push(mesh);
     p3dTimer = 0.9 / Math.max(0.2, (config.density||0.7));
   }
   
   for (const o of obstacles) {
     if (Math.abs(o.position.x - player3d.position.x) < o.userData.hw + 0.4 && Math.abs(o.position.y - player3d.position.y) < o.userData.hh + 0.8 && Math.abs(o.position.z - player3d.position.z) < 1.0) {
-      state = 'over'; showOverlay('💥 撞到了！', `得分 ${p3dScore}`); return;
+      state = 'over'; 
+      showOverlay('💥 撞到了！', `得分 ${p3dScore}`); 
+      return;
     }
   }
-  p3dDist += speed * dt; p3dScore = Math.floor(p3dDist / 2); 
+  
+  p3dDist += speed * dt; 
+  p3dScore = Math.floor(p3dDist / 2); 
   if (hudMain) hudMain.innerHTML = `得分 <span class="big">${p3dScore}</span> / <span>${config.targetScore||200}</span>`;
-  if (p3dScore >= (config.targetScore||200)) { state = 'win'; showOverlay('🎉 通关！', `你完成了《${config.title}》`); }
+  
+  if (p3dScore >= (config.targetScore||200)) { 
+      state = 'win'; 
+      showOverlay('🎉 通关！', `你完成了《${config.title}》`); 
+  }
 }
 
-
 // ==========================================
-// 引擎二：2D 塔防 & 引擎三：换装 & 引擎四：射击 (共用 Canvas2D)
+// 引擎二：2D 塔防 (Canvas 2D)
 // ==========================================
 const canvas2d = document.getElementById('canvas2d');
 const ctx = canvas2d.getContext('2d');
 function resize2D() { canvas2d.width = window.innerWidth; canvas2d.height = window.innerHeight; }
 
-// ---- 塔防 ----
 let enemies2d = [], towers2d = [], bullets2d = [];
 let coins2d = 0, baseHp2d = 100, wave2d = 1, spawnTimer2d = 0, spawnedCount2d = 0;
+
 function buildTowerScene() {
-  resize2D(); coins2d = config.coins || 200; baseHp2d = 100; wave2d = 1;
-  enemies2d = []; towers2d = []; bullets2d = []; spawnTimer2d = 0; spawnedCount2d = 0;
+  resize2D(); 
+  coins2d = config.coins || 200; 
+  baseHp2d = 100; 
+  wave2d = 1;
+  enemies2d = []; 
+  towers2d = []; 
+  bullets2d = []; 
+  spawnTimer2d = 0; 
+  spawnedCount2d = 0;
 }
+
 function updateTower(dt) {
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-  ctx.strokeStyle = '#333'; ctx.lineWidth = 40; ctx.beginPath(); ctx.moveTo(canvas2d.width, canvas2d.height / 2); ctx.lineTo(0, canvas2d.height / 2); ctx.stroke();
+  ctx.strokeStyle = '#333'; 
+  ctx.lineWidth = 40; 
+  ctx.beginPath(); 
+  ctx.moveTo(canvas2d.width, canvas2d.height / 2); 
+  ctx.lineTo(0, canvas2d.height / 2); 
+  ctx.stroke();
   
-  spawnTimer2d -= dt; const maxWaves = config.waves || 5; const totalEnemies = maxWaves * 5;
+  spawnTimer2d -= dt; 
+  const maxWaves = config.waves || 5; 
+  const totalEnemies = maxWaves * 5;
+  
   if (spawnTimer2d <= 0 && spawnedCount2d < totalEnemies) {
-    spawnedCount2d++; enemies2d.push({ x: canvas2d.width + 20, y: canvas2d.height / 2, hp: config.enemyHp || 100, maxHp: config.enemyHp || 100, speed: 30 + wave2d * 10 });
-    spawnTimer2d = 1.0; if (spawnedCount2d % 5 === 0) wave2d++;
+    spawnedCount2d++; 
+    enemies2d.push({ x: canvas2d.width + 20, y: canvas2d.height / 2, hp: config.enemyHp || 100, maxHp: config.enemyHp || 100, speed: 30 + wave2d * 10 });
+    spawnTimer2d = 1.0; 
+    if (spawnedCount2d % 5 === 0) wave2d++;
   }
+  
   for (let i = enemies2d.length - 1; i >= 0; i--) {
-    const en = enemies2d[i]; en.x -= en.speed * dt;
-    ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x - 15, en.y - 15, 30, 30);
-    ctx.fillStyle = '#fff'; ctx.fillRect(en.x - 15, en.y - 20, 30 * (en.hp / en.maxHp), 4);
-    if (en.x < 0) { baseHp2d -= 10; enemies2d.splice(i, 1); }
-    if (baseHp2d <= 0) { state = 'over'; showOverlay('💀 基地被摧毁！', `坚持到了第 ${wave2d} 波`); return; }
+    const en = enemies2d[i]; 
+    en.x -= en.speed * dt;
+    ctx.fillStyle = '#ff0066'; 
+    ctx.fillRect(en.x - 15, en.y - 15, 30, 30);
+    ctx.fillStyle = '#fff'; 
+    ctx.fillRect(en.x - 15, en.y - 20, 30 * (en.hp / en.maxHp), 4);
+    if (en.x < 0) { 
+        baseHp2d -= 10; 
+        enemies2d.splice(i, 1); 
+    }
+    if (baseHp2d <= 0) { 
+        state = 'over'; 
+        showOverlay('💀 基地被摧毁！', `坚持到了第 ${wave2d} 波`); 
+        return; 
+    }
   }
+  
   towers2d.forEach(t => {
     t.cooldown -= dt;
-    if (t.cooldown <= 0) { const target = enemies2d.find(e => Math.hypot(e.x - t.x, e.y - t.y) < t.range); if (target) { bullets2d.push({ x: t.x, y: t.y, target, speed: 400, dmg: 50 }); t.cooldown = 0.5; } }
-    ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(t.x, t.y, 15, 0, Math.PI * 2); ctx.fill();
+    if (t.cooldown <= 0) { 
+        const target = enemies2d.find(e => Math.hypot(e.x - t.x, e.y - t.y) < t.range); 
+        if (target) { 
+            bullets2d.push({ x: t.x, y: t.y, target, speed: 400, dmg: 50 }); 
+            t.cooldown = 0.5; 
+        } 
+    }
+    ctx.fillStyle = '#00ffff'; 
+    ctx.beginPath(); 
+    ctx.arc(t.x, t.y, 15, 0, Math.PI * 2); 
+    ctx.fill();
   });
+  
   for (let i = bullets2d.length - 1; i >= 0; i--) {
     const b = bullets2d[i];
-    if (!b.target || b.target.hp <= 0) { bullets2d.splice(i, 1); continue; }
+    if (!b.target || b.target.hp <= 0) { 
+        bullets2d.splice(i, 1); 
+        continue; 
+    }
     const dx = b.target.x - b.x, dy = b.target.y - b.y, dist = Math.hypot(dx, dy);
-    if (dist < 20) { b.target.hp -= b.dmg; bullets2d.splice(i, 1); } else { b.x += (dx / dist) * b.speed * dt; b.y += (dy / dist) * b.speed * dt; }
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
+    if (dist < 20) { 
+        b.target.hp -= b.dmg; 
+        bullets2d.splice(i, 1); 
+    } else { 
+        b.x += (dx / dist) * b.speed * dt; 
+        b.y += (dy / dist) * b.speed * dt; 
+    }
+    ctx.fillStyle = '#fff'; 
+    ctx.beginPath(); 
+    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); 
+    ctx.fill();
   }
+  
   enemies2d = enemies2d.filter(e => e.hp > 0);
+  
   if (hudMain) hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${baseHp2d} HP</span> | 金币 ${coins2d}`;
   if (statusEl) statusEl.textContent = `波次: ${wave2d}/${maxWaves} | 点击建塔(50金币)`;
 }
 
-// ---- 换装 ----
-let dressupColors = []; let dressupParts = { hair: 0, clothes: 0, pants: 0 };
+// ==========================================
+// 引擎三：换装 (Canvas 2D)
+// ==========================================
+let dressupColors = []; 
+let dressupParts = { hair: 0, clothes: 0, pants: 0 };
+
 function buildDressupScene() {
   resize2D();
   dressupColors = [config.hairColor || '#ff0066', config.clothesColor || '#00ffff', config.pantsColor || '#ffcc00', '#ffffff', '#ffaa00'];
   dressupParts = { hair: 0, clothes: 1, pants: 2 };
 }
+
 function updateDressup() {
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
   const cx = canvas2d.width / 2, cy = canvas2d.height / 2 - 50;
-  ctx.fillStyle = dressupColors[dressupParts.pants]; ctx.fillRect(cx - 30, cy + 60, 25, 80); ctx.fillRect(cx + 5, cy + 60, 25, 80);
-  ctx.fillStyle = dressupColors[dressupParts.clothes]; ctx.fillRect(cx - 40, cy - 20, 80, 80);
-  ctx.fillStyle = dressupColors[dressupParts.hair]; ctx.beginPath(); ctx.arc(cx, cy - 50, 40, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
-  ctx.strokeRect(cx - 45, cy - 95, 90, 90); ctx.strokeRect(cx - 45, cy - 25, 90, 90); ctx.strokeRect(cx - 35, cy + 55, 70, 90); ctx.setLineDash([]);
+  
+  ctx.fillStyle = dressupColors[dressupParts.pants]; 
+  ctx.fillRect(cx - 30, cy + 60, 25, 80); 
+  ctx.fillRect(cx + 5, cy + 60, 25, 80);
+  
+  ctx.fillStyle = dressupColors[dressupParts.clothes]; 
+  ctx.fillRect(cx - 40, cy - 20, 80, 80);
+  
+  ctx.fillStyle = dressupColors[dressupParts.hair]; 
+  ctx.beginPath(); 
+  ctx.arc(cx, cy - 50, 40, 0, Math.PI * 2); 
+  ctx.fill();
+  
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; 
+  ctx.lineWidth = 2; 
+  ctx.setLineDash([5, 5]);
+  ctx.strokeRect(cx - 45, cy - 95, 90, 90); 
+  ctx.strokeRect(cx - 45, cy - 25, 90, 90); 
+  ctx.strokeRect(cx - 35, cy + 55, 70, 90); 
+  ctx.setLineDash([]);
+  
   if (statusEl) statusEl.textContent = `点击头部/身体/腿部换色`;
 }
 
-// ---- 射击 ----
+// ==========================================
+// 引擎四：横版射击 (Canvas 2D)
+// ==========================================
 let playerShoot = { x: 100, y: 0, vx: 0, vy: 0, hp: 100, onGround: true, isShooting: false };
 let shooterEnemies = [], shooterBullets = [], shootTimer = 0, spawnTimerShoot = 0, killedCount = 0;
 let initShootY = 0;
@@ -269,40 +401,47 @@ function buildShooterScene() {
   resize2D();
   initShootY = canvas2d.height - 150;
   playerShoot = { x: 100, y: initShootY, vx: 0, vy: 0, hp: config.playerHp || 100, onGround: true, isShooting: false };
-  shooterEnemies = []; shooterBullets = []; shootTimer = 0; spawnTimerShoot = 0; killedCount = 0;
+  shooterEnemies = []; 
+  shooterBullets = []; 
+  shootTimer = 0; 
+  spawnTimerShoot = 0; 
+  killedCount = 0;
 }
 
 function updateShooter(dt) {
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
   
-  // 地面
-  ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, initShootY + 40, canvas2d.width, canvas2d.height - initShootY);
-  ctx.fillStyle = '#00ffff'; ctx.fillRect(0, initShootY + 38, canvas2d.width, 2);
+  ctx.fillStyle = '#1a1a2e'; 
+  ctx.fillRect(0, initShootY + 40, canvas2d.width, canvas2d.height - initShootY);
+  ctx.fillStyle = '#00ffff'; 
+  ctx.fillRect(0, initShootY + 38, canvas2d.width, 2);
 
-  // 玩家移动
   if (keys.left) playerShoot.x -= 250 * dt;
   if (keys.right) playerShoot.x += 250 * dt;
-  playerShoot.x = Math.max(20, Math.min(canvas2d.width / 2, playerShoot.x)); // 限制玩家在左半屏
+  playerShoot.x = Math.max(20, Math.min(canvas2d.width / 2, playerShoot.x));
 
-  // 玩家跳跃
   if (!playerShoot.onGround) {
-    playerShoot.vy += 800 * dt; playerShoot.y += playerShoot.vy * dt;
-    if (playerShoot.y >= initShootY) { playerShoot.y = initShootY; playerShoot.vy = 0; playerShoot.onGround = true; }
+    playerShoot.vy += 800 * dt; 
+    playerShoot.y += playerShoot.vy * dt;
+    if (playerShoot.y >= initShootY) { 
+        playerShoot.y = initShootY; 
+        playerShoot.vy = 0; 
+        playerShoot.onGround = true; 
+    }
   }
 
-  // 玩家绘制 (方块人)
-  ctx.fillStyle = '#4ea1ff'; ctx.fillRect(playerShoot.x - 15, playerShoot.y, 30, 40); // 身体
-  ctx.fillRect(playerShoot.x - 10, playerShoot.y - 20, 20, 20); // 头
-  ctx.fillStyle = '#fff'; ctx.fillRect(playerShoot.x + 10, playerShoot.y + 10, 20, 8); // 枪管
+  ctx.fillStyle = '#4ea1ff'; 
+  ctx.fillRect(playerShoot.x - 15, playerShoot.y, 30, 40); 
+  ctx.fillRect(playerShoot.x - 10, playerShoot.y - 20, 20, 20); 
+  ctx.fillStyle = '#fff'; 
+  ctx.fillRect(playerShoot.x + 10, playerShoot.y + 10, 20, 8);
 
-  // 射击逻辑
   if (playerShoot.isShooting && shootTimer <= 0) {
     shooterBullets.push({ x: playerShoot.x + 30, y: playerShoot.y + 14, vx: 600, isPlayer: true });
     shootTimer = 0.2;
   }
   shootTimer -= dt;
 
-  // 刷怪逻辑
   spawnTimerShoot -= dt;
   const maxEnemies = config.enemyCount || 10;
   if (spawnTimerShoot <= 0 && killedCount + shooterEnemies.length < maxEnemies) {
@@ -310,35 +449,46 @@ function updateShooter(dt) {
     spawnTimerShoot = 1.5;
   }
 
-  // 更新敌人
   for (let i = shooterEnemies.length - 1; i >= 0; i--) {
-    const en = shooterEnemies[i]; en.x -= en.speed * dt;
-    ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x - 15, en.y, 30, 40); // 敌人身体
-    if (en.x < playerShoot.x + 20 && en.x > playerShoot.x - 20) { // 撞到玩家
-      state = 'over'; showOverlay('💀 被敌人击杀了！', `你击杀了 ${killedCount} 个敌人`); return;
+    const en = shooterEnemies[i]; 
+    en.x -= en.speed * dt;
+    ctx.fillStyle = '#ff0066'; 
+    ctx.fillRect(en.x - 15, en.y, 30, 40);
+    if (en.x < playerShoot.x + 20 && en.x > playerShoot.x - 20) { 
+        state = 'over'; 
+        showOverlay('💀 被敌人击杀了！', `你击杀了 ${killedCount} 个敌人`); 
+        return; 
     }
-    if (en.x < -50) { state = 'over'; showOverlay('💀 敌人跑掉了！', `你击杀了 ${killedCount} 个敌人`); return; }
+    if (en.x < -50) { 
+        state = 'over'; 
+        showOverlay('💀 敌人跑掉了！', `你击杀了 ${killedCount} 个敌人`); 
+        return; 
+    }
   }
 
-  // 更新子弹
   for (let i = shooterBullets.length - 1; i >= 0; i--) {
-    const b = shooterBullets[i]; b.x += b.vx * dt;
-    ctx.fillStyle = '#ffff00'; ctx.fillRect(b.x, b.y, 10, 4);
+    const b = shooterBullets[i]; 
+    b.x += b.vx * dt;
+    ctx.fillStyle = '#ffff00'; 
+    ctx.fillRect(b.x, b.y, 10, 4);
     
-    // 命中检测
     let hit = false;
     for (let j = shooterEnemies.length - 1; j >= 0; j--) {
       const en = shooterEnemies[j];
       if (b.x > en.x - 15 && b.x < en.x + 15) {
-        shooterEnemies.splice(j, 1); killedCount++; hit = true; break;
+        shooterEnemies.splice(j, 1); 
+        killedCount++; 
+        hit = true; 
+        break;
       }
     }
     if (hit || b.x > canvas2d.width) shooterBullets.splice(i, 1);
   }
 
-  // 胜利检测
   if (killedCount >= maxEnemies) {
-    state = 'win'; showOverlay('🎉 消灭了所有敌人！', `你完成了《${config.title}》'); return;
+    state = 'win'; 
+    showOverlay('🎉 消灭了所有敌人！', `你完成了《${config.title}》`); 
+    return;
   }
 
   if (hudMain) hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#ff0066;">击杀 ${killedCount} / ${maxEnemies}</span>`;
@@ -348,7 +498,10 @@ function updateShooter(dt) {
 // 点击事件分发
 canvas2d.addEventListener('pointerdown', (e) => {
   if (state !== 'playing') return;
-  if (config.gameType === 'tower' && coins2d >= 50) { coins2d -= 50; towers2d.push({ x: e.clientX, y: e.clientY, range: 120, cooldown: 0 }); }
+  if (config.gameType === 'tower' && coins2d >= 50) { 
+      coins2d -= 50; 
+      towers2d.push({ x: e.clientX, y: e.clientY, range: 120, cooldown: 0 }); 
+  }
   if (config.gameType === 'dressup') {
     const cx = canvas2d.width / 2, cy = canvas2d.height / 2 - 50, x = e.clientX, y = e.clientY;
     if (y > cy - 95 && y < cy - 5) dressupParts.hair = (dressupParts.hair + 1) % dressupColors.length;
@@ -363,36 +516,49 @@ canvas2d.addEventListener('pointerdown', (e) => {
 let lastTime = performance.now();
 function animate(now) {
   requestAnimationFrame(animate);
-  const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
+  const dt = Math.min((now - lastTime) / 1000, 0.05); 
+  lastTime = now;
+  
   if (state !== 'playing') return;
   try {
       if (config.gameType === 'tower') updateTower(dt);
       else if (config.gameType === 'dressup') updateDressup();
       else if (config.gameType === 'shooter') updateShooter(dt);
       else { update3D(dt); composer.render(); }
-  } catch(e) { console.error(e); }
+  } catch(e) { 
+      console.error(e); 
+  }
 }
 
 function startGame() {
-  hideOverlay(); document.getElementById('panel').classList.add('collapsed');
+  hideOverlay(); 
+  document.getElementById('panel').classList.add('collapsed');
   state = 'playing';
   if (statusEl) statusEl.textContent = '进行中 · ' + config.title;
   document.getElementById('hud-title').textContent = config.title;
 
-  // 隐藏所有控制
   document.getElementById('move-controls').style.display = 'none';
   document.getElementById('action-controls').style.display = 'none';
   document.getElementById('jump').style.display = 'none';
   document.getElementById('shoot').style.display = 'none';
 
   if (config.gameType === 'parkour') {
-    canvas3d.style.display = 'block'; canvas2d.style.display = 'none';
+    canvas3d.style.display = 'block'; 
+    canvas2d.style.display = 'none';
     document.getElementById('move-controls').style.display = 'flex';
     document.getElementById('action-controls').style.display = 'flex';
     document.getElementById('jump').style.display = 'flex';
-    build3DScene(); p3dDist = 0; p3dScore = 0; p3dX = 0; p3dY = 1; p3dVY = 0; p3dGround = true; p3dTimer = 0;
+    build3DScene(); 
+    p3dDist = 0; 
+    p3dScore = 0; 
+    p3dX = 0; 
+    p3dY = 1; 
+    p3dVY = 0; 
+    p3dGround = true; 
+    p3dTimer = 0;
   } else {
-    canvas3d.style.display = 'none'; canvas2d.style.display = 'block';
+    canvas3d.style.display = 'none'; 
+    canvas2d.style.display = 'block';
     if (config.gameType === 'tower') { buildTowerScene(); }
     if (config.gameType === 'dressup') { buildDressupScene(); }
     if (config.gameType === 'shooter') { 
@@ -407,13 +573,18 @@ function startGame() {
 
 // 键鼠绑定
 const keys = { left:false, right:false };
-document.getElementById('left').addEventListener('touchstart', () => keys.left=true); document.getElementById('left').addEventListener('touchend', () => keys.left=false);
-document.getElementById('right').addEventListener('touchstart', () => keys.right=true); document.getElementById('right').addEventListener('touchend', () => keys.right=false);
+
+document.getElementById('left').addEventListener('touchstart', () => { keys.left=true; }); 
+document.getElementById('left').addEventListener('touchend', () => { keys.left=false; });
+document.getElementById('right').addEventListener('touchstart', () => { keys.right=true; }); 
+document.getElementById('right').addEventListener('touchend', () => { keys.right=false; });
+
 document.getElementById('jump').addEventListener('touchstart', () => { 
     if(state!=='playing') return;
     if(config.gameType==='parkour' && p3dGround) { p3dVY = 9; p3dGround = false; } 
     if(config.gameType==='shooter' && playerShoot.onGround) { playerShoot.vy = -500; playerShoot.onGround = false; }
 });
+
 document.getElementById('shoot').addEventListener('touchstart', () => { playerShoot.isShooting = true; });
 document.getElementById('shoot').addEventListener('touchend', () => { playerShoot.isShooting = false; });
 
@@ -427,20 +598,33 @@ document.addEventListener('keydown', (e) => {
     } 
     if (e.key === 'j' || e.key === 'J') playerShoot.isShooting = true;
 });
+
 document.addEventListener('keyup', (e) => { 
     if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false; 
     if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false; 
     if (e.key === 'j' || e.key === 'J') playerShoot.isShooting = false;
 });
-window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); resize2D(); });
 
+window.addEventListener('resize', () => { 
+    camera.aspect = window.innerWidth / window.innerHeight; 
+    camera.updateProjectionMatrix(); 
+    renderer.setSize(window.innerWidth, window.innerHeight); 
+    composer.setSize(window.innerWidth, window.innerHeight); 
+    resize2D(); 
+});
 
 // 生成与历史记录
 const promptEl = document.getElementById('prompt'), genBtn = document.getElementById('gen'), panel = document.getElementById('panel');
 document.getElementById('panelToggle').addEventListener('click', () => panel.classList.toggle('collapsed'));
 const historyBtn = document.getElementById('history-btn'), historyPanel = document.getElementById('history-panel'), historyList = document.getElementById('history-list');
-historyBtn.addEventListener('click', () => { renderHistory(); historyPanel.classList.add('show'); });
-document.getElementById('close-history').addEventListener('click', () => historyPanel.classList.remove('show'));
+
+historyBtn.addEventListener('click', () => { 
+    renderHistory(); 
+    historyPanel.classList.add('show'); 
+});
+document.getElementById('close-history').addEventListener('click', () => { 
+    historyPanel.classList.remove('show'); 
+});
 
 function saveHistory(promptText, configObj) {
   let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
@@ -449,51 +633,88 @@ function saveHistory(promptText, configObj) {
   if (hist.length > 20) hist.pop();
   localStorage.setItem('ai_game_history', JSON.stringify(hist));
 }
+
 function renderHistory() {
   let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
-  if (hist.length === 0) { historyList.innerHTML = '<p style="color:#666; text-align:center;">暂无</p>'; return; }
+  if (hist.length === 0) { 
+      historyList.innerHTML = '<p style="color:#666; text-align:center;">暂无</p>'; 
+      return; 
+  }
   historyList.innerHTML = hist.map((item, index) => `
     <div class="history-item" data-index="${index}">
       <div style="color:#fff; margin-bottom:4px;">${item.config.title}</div>
       <div style="font-size:12px; color:#889; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.prompt}</div>
     </div>`).join('');
+    
   document.querySelectorAll('.history-item').forEach(el => {
-    el.addEventListener('click', () => { config = hist[parseInt(el.dataset.index)].config; promptEl.value = hist[parseInt(el.dataset.index)].prompt; startGame(); historyPanel.classList.remove('show'); });
+    el.addEventListener('click', () => { 
+        const idx = parseInt(el.dataset.index);
+        config = hist[idx].config; 
+        promptEl.value = hist[idx].prompt; 
+        startGame(); 
+        historyPanel.classList.remove('show'); 
+    });
   });
 }
 
 async function generate() {
   const text = promptEl.value.trim() || '做一个默认的3D跑酷游戏';
-  genBtn.disabled = true; genBtn.textContent = 'AI构思中…';
+  genBtn.disabled = true; 
+  genBtn.textContent = 'AI构思中…';
+  
   try {
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '生成失败');
+    
     config = data; 
     
-    // 绝对防御拦截
     if (text.includes('塔防') || text.includes('防御')) {
-        config.gameType = 'tower'; config.waves = config.waves || 5; config.enemyHp = config.enemyHp || 100; config.coins = config.coins || 200;
+        config.gameType = 'tower'; 
+        config.waves = config.waves || 5; 
+        config.enemyHp = config.enemyHp || 100; 
+        config.coins = config.coins || 200;
     } else if (text.includes('换装') || text.includes('穿衣') || text.includes('衣服') || text.includes('打扮')) {
-        config.gameType = 'dressup'; config.hairColor = config.hairColor || '#ff0066'; config.clothesColor = config.clothesColor || '#00ffff'; config.pantsColor = config.pantsColor || '#ffcc00';
+        config.gameType = 'dressup'; 
+        config.hairColor = config.hairColor || '#ff0066'; 
+        config.clothesColor = config.clothesColor || '#00ffff'; 
+        config.pantsColor = config.pantsColor || '#ffcc00';
     } else if (text.includes('射击') || text.includes('魂斗罗') || text.includes('枪') || text.includes('战斗')) {
-        config.gameType = 'shooter'; config.enemyCount = config.enemyCount || 10; config.playerHp = config.playerHp || 100;
+        config.gameType = 'shooter'; 
+        config.enemyCount = config.enemyCount || 10; 
+        config.playerHp = config.playerHp || 100;
     } else {
-        config.gameType = 'parkour'; config.speed = config.speed || 14; config.targetScore = config.targetScore || 200;
+        config.gameType = 'parkour'; 
+        config.speed = config.speed || 14; 
+        config.targetScore = config.targetScore || 200;
     }
+    
     if(!config.title) config.title = '自定义游戏';
     saveHistory(text, config);
+    
   } catch (err) {
-    alert('AI生成失败：' + err.message); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏'; return;
+    alert('AI生成失败：' + err.message); 
+    genBtn.disabled = false; 
+    genBtn.textContent = '✨ 生成游戏'; 
+    return;
   }
-  startGame(); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏';
+  
+  startGame(); 
+  genBtn.disabled = false; 
+  genBtn.textContent = '✨ 生成游戏';
 }
+
 genBtn.addEventListener('click', generate);
 document.querySelectorAll('.example').forEach(btn => {
-  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; generate(); });
+  btn.addEventListener('click', () => { 
+      promptEl.value = btn.dataset.p; 
+      generate(); 
+  });
 });
 
-resize2D(); requestAnimationFrame(animate);
+// 启动
+resize2D(); 
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
