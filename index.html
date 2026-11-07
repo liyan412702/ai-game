@@ -7,15 +7,15 @@
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
-  #game { display:block; width:100%; height:100%; touch-action:none; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  #canvas3d, #canvas2d { position:absolute; top:0; left:0; width:100%; height:100%; }
+  
   #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
-  
-  #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px); cursor:pointer; }
-  
+  #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px;); }
   #history-panel { position:fixed; top:0; right:-100%; width:80%; max-width:300px; height:100%; background:rgba(15,15,25,0.95); z-index:20; transition:right 0.3s ease; padding:20px; overflow-y:auto; border-left:1px solid rgba(255,255,255,0.1); }
   #history-panel.show { right:0; }
-  .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:10px; color:#ccc; font-size:14px; cursor:pointer; }
+  .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:10px; color:#ccc; font-size:14px; }
   .history-item:active { background:rgba(78,161,255,0.2); }
 
   #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; }
@@ -31,11 +31,11 @@
   #prompt { width:100%; height:48px; resize:none; border-radius:12px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.05); color:#fff; padding:10px 12px; font-size:15px; outline:none; line-height:1.4; }
   #prompt:focus { border-color:#4ea1ff; box-shadow:0 0 10px rgba(78,161,255,.3); }
   .row { display:flex; gap:8px; margin-top:10px; align-items:center; }
-  #gen { flex:1; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; box-shadow:0 4px 15px rgba(78,161,255,.4); cursor:pointer; }
+  #gen { flex:1; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; box-shadow:0 4px 15px rgba(78,161,255,.4); }
   #gen:active { filter:brightness(0.9); transform:translateY(2px); }
   #gen:disabled { opacity:.6; }
   #examples { display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
-  .example { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#cfd8ff; font-size:13px; white-space:nowrap; cursor:pointer; }
+  .example { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#cfd8ff; font-size:13px; white-space:nowrap; }
   .example:active { background:rgba(255,255,255,.1); }
   
   #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.7); z-index:20; padding:20px; backdrop-filter:blur(4px); }
@@ -43,31 +43,32 @@
   #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px 24px; text-align:center; color:#fff; width:100%; max-width:340px; }
   #overlay h2 { font-size:24px; margin-bottom:10px; }
   #overlay p { color:#aab; margin-bottom:20px; font-size:14px; }
-  #overlay button { width:100%; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
+  #overlay button { width:100%; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+<canvas id="canvas3d"></canvas>
+<canvas id="canvas2d" style="display:none;"></canvas>
 
 <div id="hud">
-  <div>得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
+  <div id="hud-title" style="font-size:16px; margin-bottom:4px;">AI造梦器</div>
+  <div id="hud-main">得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
   <div id="status">生成后开始</div>
 </div>
 
 <button id="history-btn">📜 历史记录</button>
-
 <div id="history-panel">
   <h3 style="color:#fff; margin-bottom:15px; font-size:16px;">历史生成记录</h3>
   <div id="history-list"></div>
-  <button id="close-history" style="width:100%; padding:10px; margin-top:20px; background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:8px; cursor:pointer;">关闭</button>
+  <button id="close-history" style="width:100%; padding:10px; margin-top:20px; background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:8px;">关闭</button>
 </div>
 
 <div id="controls">
-  <div class="pad">
+  <div class="pad" id="parkour-controls">
     <div class="btn-ctrl" id="left">←</div>
     <div class="btn-ctrl" id="right">→</div>
   </div>
-  <div class="pad">
+  <div class="pad" id="parkour-jump">
     <div class="btn-ctrl" id="jump">跳</div>
   </div>
 </div>
@@ -75,13 +76,11 @@
 <div id="panel">
   <div id="panelToggle"></div>
   <textarea id="prompt" placeholder="描述你想玩的游戏（如：赛博朋克跑酷 / 做个简单的塔防）"></textarea>
-  <div class="row">
-    <button id="gen">✨ 生成游戏</button>
-  </div>
+  <div class="row"><button id="gen">✨ 生成游戏</button></div>
   <div id="examples">
     <button class="example" data-p="赛博朋克城市，速度快，障碍密集">赛博朋克·跑酷</button>
     <button class="example" data-p="森林里轻松悠闲的跑酷">森林·跑酷</button>
-    <button class="example" data-p="做一个2D塔防游戏，怪物很多">2D塔防（开发中）</button>
+    <button class="example" data-p="做一个简单的2D塔防，怪物很多">2D·塔防</button>
   </div>
 </div>
 
@@ -108,160 +107,236 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 400);
-camera.position.set(0, 6, 11);
-camera.lookAt(0, 1.5, -12);
-
-const renderScene = new RenderPass(scene, camera);
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-bloomPass.threshold = 0.2; bloomPass.strength = 1.2; bloomPass.radius = 0.5;
-const composer = new EffectComposer(renderer);
-composer.addPass(renderScene); composer.addPass(bloomPass);
-
-function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
-  camera.aspect = w / h; camera.fov = h > w ? 78 : 65;
-  camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h);
-}
-window.addEventListener('resize', resize);
-
+// --- 公共变量 ---
 const THEMES = {
-  default: { bg:0x050508, fog:0x050508, ground:0x1b1b2a, player:0x4ea1ff, obstacle:0xff5c8a, light:0xffffff, ambient:0.4 },
-  cyber:   { bg:0x050510, fog:0x050510, ground:0x111128, player:0x00ffff, obstacle:0xff0066, light:0x8888ff, ambient:0.3 },
-  forest:  { bg:0x0a1510, fog:0x0a1510, ground:0x1f3b25, player:0x9be15d, obstacle:0x40c057, light:0xc8ffb0, ambient:0.6 },
-  desert:  { bg:0x1f1508, fog:0x1f1508, ground:0x8a6a3a, player:0xffd166, obstacle:0xd64545, light:0xffe0a0, ambient:0.7 },
-  snow:    { bg:0x101820, fog:0x101820, ground:0xdfe9f5, player:0x4ea1ff, obstacle:0x3a6ea5, light:0xffffff, ambient:0.8 },
-  space:   { bg:0x000000, fog:0x000000, ground:0x0a0a15, player:0xff9f43, obstacle:0x9b59ff, light:0xaaccff, ambient:0.2 }
+  default: { bg:0x050508, ground:0x1b1b2a, player:0x4ea1ff, obstacle:0xff5c8a, light:0xffffff, ambient:0.4 },
+  cyber:   { bg:0x050510, ground:0x111128, player:0x00ffff, obstacle:0xff0066, light:0x8888ff, ambient:0.3 },
+  forest:  { bg:0x0a1510, ground:0x1f3b25, player:0x9be15d, obstacle:0x40c057, light:0xc8ffb0, ambient:0.6 },
+  desert:  { bg:0x1f1508, ground:0x8a6a3a, player:0xffd166, obstacle:0xd64545, light:0xffe0a0, ambient:0.7 },
+  snow:    { bg:0x101820, ground:0xdfe9f5, player:0x4ea1ff, obstacle:0x3a6ea5, light:0xffffff, ambient:0.8 },
+  space:   { bg:0x000000, ground:0x0a0a15, player:0xff9f43, obstacle:0x9b59ff, light:0xaaccff, ambient:0.2 }
 };
-
-let config = { theme:'default', title:'默认跑酷', speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200 };
-let ground, player, ambientLight, dirLight, gridHelper;
-const obstacles = [];
-
-function buildScene() {
-  for (const o of obstacles) scene.remove(o);
-  obstacles.length = 0;
-  if (ground) { scene.remove(ground); ground.geometry.dispose(); ground.material.dispose(); }
-  if (gridHelper) scene.remove(gridHelper);
-  if (player) { scene.remove(player); player.geometry.dispose(); player.material.dispose(); }
-  if (ambientLight) scene.remove(ambientLight);
-  if (dirLight) scene.remove(dirLight);
-
-  const t = THEMES[config.theme] || THEMES.default;
-  scene.background = new THREE.Color(t.bg);
-  scene.fog = new THREE.Fog(t.fog, 40, 150);
-
-  ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 300), new THREE.MeshStandardMaterial({ color:t.ground, roughness:0.8, metalness:0.2 }));
-  ground.rotation.x = -Math.PI / 2; ground.position.z = -140; scene.add(ground);
-
-  gridHelper = new THREE.GridHelper(300, 150, t.player, t.ground);
-  gridHelper.position.z = -140; gridHelper.position.y = 0.01; scene.add(gridHelper);
-
-  player = new THREE.Mesh(new THREE.BoxGeometry(1, 1.6, 1), new THREE.MeshStandardMaterial({ color: t.player, emissive: t.player, emissiveIntensity: 1.5, roughness: 0.2, metalness: 0.8 }));
-  player.position.set(0, 1, 0); scene.add(player);
-
-  ambientLight = new THREE.AmbientLight(0xffffff, t.ambient); scene.add(ambientLight);
-  dirLight = new THREE.DirectionalLight(t.light, 1.5); dirLight.position.set(5, 15, 5); scene.add(dirLight);
-}
-
+let config = { gameType:'parkour', theme:'default', title:'默认游戏', speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200, waves:5, enemyHp:100, coins:200 };
 let state = 'ready';
-let distance = 0, score = 0, playerX = 0, playerY = 1, vy = 0, onGround = true, spawnTimer = 0;
-const keys = { left:false, right:false };
-
-function bindHold(el, on, off) {
-  const start = (e) => { e.preventDefault(); on(); el.classList.add('on'); };
-  const end = (e) => { e.preventDefault(); off(); el.classList.remove('on'); };
-  el.addEventListener('touchstart', start, { passive:false });
-  el.addEventListener('touchend', end, { passive:false });
-  el.addEventListener('touchcancel', end, { passive:false });
-  el.addEventListener('mousedown', start); el.addEventListener('mouseup', end); el.addEventListener('mouseleave', end);
-}
-bindHold(document.getElementById('left'), () => keys.left = true, () => keys.left = false);
-bindHold(document.getElementById('right'), () => keys.right = true, () => keys.right = false);
-document.getElementById('jump').addEventListener('touchstart', (e) => { e.preventDefault(); if (state === 'playing' && onGround) { vy = config.jumpForce; onGround = false; } }, { passive:false });
-canvas.addEventListener('touchstart', (e) => { const x = e.touches[0].clientX; if (x > window.innerWidth / 2 && state === 'playing' && onGround) { vy = config.jumpForce; onGround = false; } }, { passive:true });
-document.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true; if (e.code === 'Space' && state === 'playing' && onGround) { e.preventDefault(); vy = config.jumpForce; onGround = false; } });
-document.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false; });
-
-function spawnObstacle() {
-  const t = THEMES[config.theme] || THEMES.default;
-  const size = 1 + Math.random() * 1.2;
-  const geo = new THREE.OctahedronGeometry(size);
-  const mat = new THREE.MeshStandardMaterial({ color: t.obstacle, emissive: t.obstacle, emissiveIntensity: 1.2, roughness: 0.1, wireframe: Math.random() > 0.5 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set((Math.random() - 0.5) * 8, size, -100);
-  mesh.userData.halfWidth = size; mesh.userData.halfHeight = size; mesh.userData.rotSpeed = (Math.random() - 0.5) * 4;
-  scene.add(mesh); obstacles.push(mesh);
-}
-
-const scoreEl = document.getElementById('score'), targetEl = document.getElementById('target'), statusEl = document.getElementById('status');
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
+const statusEl = document.getElementById('status');
 
-function updateHUD() { scoreEl.textContent = score; targetEl.textContent = config.targetScore; }
 function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
 function hideOverlay() { overlay.classList.remove('show'); }
 ovBtn.addEventListener('click', () => { hideOverlay(); startGame(); });
 
-function startGame() {
-  for (const o of obstacles) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); }
+// ==========================================
+// 引擎一：3D 跑酷 (Three.js)
+// ==========================================
+const canvas3d = document.getElementById('canvas3d');
+const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 400);
+camera.position.set(0, 6, 11); camera.lookAt(0, 1.5, -12);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+bloomPass.threshold = 0.2; bloomPass.strength = 1.2; bloomPass.radius = 0.5;
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera)); composer.addPass(bloomPass);
+
+let ground, player3d, ambientLight, dirLight, gridHelper;
+const obstacles = [];
+let p3dDist = 0, p3dScore = 0, p3dX = 0, p3dY = 1, p3dVY = 0, p3dGround = true, p3dTimer = 0;
+
+function build3DScene() {
+  for (const o of obstacles) scene.remove(o);
   obstacles.length = 0;
-  distance = 0; score = 0; playerX = 0; playerY = 1; vy = 0; onGround = true; spawnTimer = 0;
-  state = 'playing';
-  player.position.set(0, 1, 0);
-  statusEl.textContent = '进行中 · ' + config.title;
-  updateHUD(); hideOverlay(); document.getElementById('panel').classList.add('collapsed');
+  if (ground) { scene.remove(ground); ground.geometry.dispose(); ground.material.dispose(); }
+  if (gridHelper) scene.remove(gridHelper);
+  if (player3d) { scene.remove(player3d); player3d.geometry.dispose(); player3d.material.dispose(); }
+  if (ambientLight) scene.remove(ambientLight); if (dirLight) scene.remove(dirLight);
+
+  const t = THEMES[config.theme] || THEMES.default;
+  scene.background = new THREE.Color(t.bg); scene.fog = new THREE.Fog(t.bg, 40, 150);
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 300), new THREE.MeshStandardMaterial({ color:t.ground, roughness:0.8 }));
+  ground.rotation.x = -Math.PI / 2; ground.position.z = -140; scene.add(ground);
+  gridHelper = new THREE.GridHelper(300, 150, t.player, t.ground); gridHelper.position.z = -140; gridHelper.position.y = 0.01; scene.add(gridHelper);
+  player3d = new THREE.Mesh(new THREE.BoxGeometry(1, 1.6, 1), new THREE.MeshStandardMaterial({ color: t.player, emissive: t.player, emissiveIntensity: 1.5 }));
+  player3d.position.set(0, 1, 0); scene.add(player3d);
+  ambientLight = new THREE.AmbientLight(0xffffff, t.ambient); scene.add(ambientLight);
+  dirLight = new THREE.DirectionalLight(t.light, 1.5); dirLight.position.set(5, 15, 5); scene.add(dirLight);
 }
 
-let lastTime = performance.now();
-function update(dt, time) {
+function update3D(dt, time) {
   if (state !== 'playing') return;
-  const moveSpeed = 10;
-  if (keys.left) playerX -= moveSpeed * dt;
-  if (keys.right) playerX += moveSpeed * dt;
-  playerX = Math.max(-5, Math.min(5, playerX));
-  if (!onGround) { vy -= config.gravity * dt; playerY += vy * dt; if (playerY <= 1) { playerY = 1; vy = 0; onGround = true; } }
-  player.position.x = playerX; player.position.y = playerY;
-  player.rotation.y += dt * 2;
-  const scale = 1 + Math.sin(time * 0.01) * 0.05; player.scale.set(scale, scale, scale);
-
+  if (keys.left) p3dX -= 10 * dt; if (keys.right) p3dX += 10 * dt;
+  p3dX = Math.max(-5, Math.min(5, p3dX));
+  if (!p3dGround) { p3dVY -= config.gravity * dt; p3dY += p3dVY * dt; if (p3dY <= 1) { p3dY = 1; p3dVY = 0; p3dGround = true; } }
+  player3d.position.set(p3dX, p3dY, 0); player3d.rotation.y += dt * 2;
+  
   for (let i = obstacles.length - 1; i >= 0; i--) {
-    const o = obstacles[i];
-    o.position.z += config.speed * dt;
-    o.rotation.x += o.userData.rotSpeed * dt; o.rotation.y += o.userData.rotSpeed * dt;
+    const o = obstacles[i]; o.position.z += config.speed * dt; o.rotation.x += dt; o.rotation.y += dt;
     if (o.position.z > 8) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); obstacles.splice(i, 1); }
   }
-  spawnTimer -= dt;
-  if (spawnTimer <= 0) { spawnObstacle(); spawnTimer = 0.9 / Math.max(0.2, config.density); }
-
+  p3dTimer -= dt; if (p3dTimer <= 0) { spawnObstacle3D(); p3dTimer = 0.9 / Math.max(0.2, config.density); }
+  
   for (const o of obstacles) {
-    if (Math.abs(o.position.x - player.position.x) < o.userData.halfWidth + 0.4 && Math.abs(o.position.y - player.position.y) < o.userData.halfHeight + 0.8 && Math.abs(o.position.z - player.position.z) < 0.5 + 0.5) {
-      state = 'over'; statusEl.textContent = '游戏结束'; showOverlay('💥 撞到了！', `你跑了 ${score} 分，目标是 ${config.targetScore} 分。`); return;
+    if (Math.abs(o.position.x - player3d.position.x) < o.userData.hw + 0.4 && Math.abs(o.position.y - player3d.position.y) < o.userData.hh + 0.8 && Math.abs(o.position.z - player3d.position.z) < 1.0) {
+      state = 'over'; showOverlay('💥 撞到了！', `得分 ${p3dScore}`); return;
     }
   }
-  distance += config.speed * dt; score = Math.floor(distance / 2); updateHUD();
-  if (score >= config.targetScore) { state = 'win'; statusEl.textContent = '通关！'; showOverlay('🎉 通关！', `你完成了《${config.title}》，得分 ${score}。`); }
+  p3dDist += config.speed * dt; p3dScore = Math.floor(p3dDist / 2); updateHUD3D();
+  if (p3dScore >= config.targetScore) { state = 'win'; showOverlay('🎉 通关！', `你完成了《${config.title}》`); }
+}
+function spawnObstacle3D() {
+  const t = THEMES[config.theme] || THEMES.default, size = 1 + Math.random() * 1.2;
+  const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(size), new THREE.MeshStandardMaterial({ color: t.obstacle, emissive: t.obstacle, emissiveIntensity: 1.2, wireframe: Math.random() > 0.5 }));
+  mesh.position.set((Math.random() - 0.5) * 8, size, -100);
+  mesh.userData = { hw: size, hh: size }; scene.add(mesh); obstacles.push(mesh);
+}
+function updateHUD3D() { document.getElementById('score').textContent = p3dScore; document.getElementById('target').textContent = config.targetScore; }
+
+
+// ==========================================
+// 引擎二：2D 塔防 (Canvas 2D)
+// ==========================================
+const canvas2d = document.getElementById('canvas2d');
+const ctx = canvas2d.getContext('2d');
+let enemies2d = [], towers2d = [], bullets2d = [];
+let game2dRunning = false, coins2d = 0, baseHp2d = 100, wave2d = 0, spawnTimer2d = 0, lastTime2d = 0;
+
+function resize2D() { canvas2d.width = window.innerWidth; canvas2d.height = window.innerHeight; }
+function build2DScene() {
+  resize2D();
+  coins2d = config.coins || 200;
+  baseHp2d = 100; wave2d = 1;
+  enemies2d = []; towers2d = []; bullets2d = [];
+  game2dRunning = true;
 }
 
+// 点击建塔
+canvas2d.addEventListener('pointerdown', (e) => {
+  if (state !== 'playing' || config.gameType !== 'tower') return;
+  const x = e.clientX, y = e.clientY;
+  if (coins2d >= 50) {
+    coins2d -= 50;
+    towers2d.push({ x, y, range: 100, cooldown: 0 });
+  }
+});
+
+function update2D(dt) {
+  if (state !== 'playing' || !game2dRunning) return;
+  ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+  
+  // 画路径
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 40; ctx.beginPath();
+  ctx.moveTo(canvas2d.width, canvas2d.height / 2);
+  ctx.lineTo(0, canvas2d.height / 2); ctx.stroke();
+
+  // 生成怪物
+  spawnTimer2d -= dt;
+  if (spawnTimer2d <= 0 && wave2d <= config.waves) {
+    enemies2d.push({ x: canvas2d.width + 20, y: canvas2d.height / 2, hp: config.enemyHp, maxHp: config.enemyHp, speed: 40 + wave2d * 10 });
+    spawnTimer2d = 1.5;
+    if (enemies2d.length % 5 === 0) wave2d++;
+  }
+
+  // 更新怪物
+  for (let i = enemies2d.length - 1; i >= 0; i--) {
+    const en = enemies2d[i]; en.x -= en.speed * dt;
+    ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x - 15, en.y - 15, 30, 30);
+    ctx.fillStyle = '#fff'; ctx.fillRect(en.x - 15, en.y - 20, 30 * (en.hp / en.maxHp), 4);
+    if (en.x < 0) { baseHp2d -= 10; enemies2d.splice(i, 1); }
+    if (baseHp2d <= 0) { state = 'over'; game2dRunning = false; showOverlay('💀 基地被摧毁！', `坚持到了第 ${wave2d} 波`); return; }
+  }
+
+  // 更新塔
+  towers2d.forEach(t => {
+    t.cooldown -= dt;
+    if (t.cooldown <= 0) {
+      const target = enemies2d.find(e => Math.hypot(e.x - t.x, e.y - t.y) < t.range);
+      if (target) { bullets2d.push({ x: t.x, y: t.y, target, speed: 300, dmg: 25 }); t.cooldown = 0.8; }
+    }
+    ctx.fillStyle = '#00ffff'; ctx.beginPath(); ctx.arc(t.x, t.y, 15, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,255,255,0.2)'; ctx.beginPath(); ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2); ctx.stroke();
+  });
+
+  // 更新子弹
+  for (let i = bullets2d.length - 1; i >= 0; i--) {
+    const b = bullets2d[i];
+    if (!b.target || b.target.hp <= 0) { bullets2d.splice(i, 1); continue; }
+    const dx = b.target.x - b.x, dy = b.target.y - b.y, dist = Math.hypot(dx, dy);
+    if (dist < 15) { b.target.hp -= b.dmg; bullets2d.splice(i, 1); }
+    else { b.x += (dx / dist) * b.speed * dt; b.y += (dy / dist) * b.speed * dt; }
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // 清理死怪
+  enemies2d = enemies2d.filter(e => e.hp > 0);
+  
+  // HUD
+  document.getElementById('score').textContent = `金币:${coins2d} 生命:${baseHp2d}`;
+  document.getElementById('target').textContent = `波次:${wave2d}/${config.waves}`;
+  document.getElementById('hud-main').innerHTML = `<span class="big">${baseHp2d} HP</span> | 金币 ${coins2d}`;
+  document.getElementById('target').textContent = "";
+}
+
+
+// ==========================================
+// 主循环与场景切换
+// ==========================================
+let lastTime = performance.now();
 function animate(now) {
   requestAnimationFrame(animate);
   const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
-  update(dt, now); composer.render();
+  
+  if (config.gameType === 'tower') {
+    update2D(dt);
+  } else {
+    update3D(dt, now); composer.render();
+  }
 }
 
-const historyBtn = document.getElementById('history-btn');
-const historyPanel = document.getElementById('history-panel');
-const historyList = document.getElementById('history-list');
-const closeHistoryBtn = document.getElementById('close-history');
+function startGame() {
+  hideOverlay(); document.getElementById('panel').classList.add('collapsed');
+  state = 'playing';
+  statusEl.textContent = '进行中 · ' + config.title;
+  document.getElementById('hud-title').textContent = config.title;
 
+  if (config.gameType === 'tower') {
+    canvas3d.style.display = 'none'; canvas2d.style.display = 'block';
+    document.getElementById('parkour-controls').style.display = 'none';
+    document.getElementById('parkour-jump').style.display = 'none';
+    build2DScene();
+  } else {
+    canvas3d.style.display = 'block'; canvas2d.style.display = 'none';
+    document.getElementById('parkour-controls').style.display = 'flex';
+    document.getElementById('parkour-jump').style.display = 'flex';
+    build3DScene();
+    p3dDist = 0; p3dScore = 0; p3dX = 0; p3dY = 1; p3dVY = 0; p3dGround = true; p3dTimer = 0;
+    updateHUD3D();
+  }
+}
+
+// 键鼠事件
+const keys = { left:false, right:false };
+document.getElementById('left').addEventListener('touchstart', () => keys.left=true);
+document.getElementById('left').addEventListener('touchend', () => keys.left=false);
+document.getElementById('right').addEventListener('touchstart', () => keys.right=true);
+document.getElementById('right').addEventListener('touchend', () => keys.right=false);
+document.getElementById('jump').addEventListener('touchstart', () => { if(state==='playing' && config.gameType==='parkour' && p3dGround) { p3dVY = config.jumpForce; p3dGround = false; } });
+document.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true; if (e.code === 'Space' && state === 'playing' && config.gameType === 'parkour' && p3dGround) { e.preventDefault(); p3dVY = config.jumpForce; p3dGround = false; } });
+document.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false; });
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); resize2D();
+});
+
+
+// ==========================================
+// 历史记录与 AI 生成
+// ==========================================
+const promptEl = document.getElementById('prompt'), genBtn = document.getElementById('gen'), panel = document.getElementById('panel');
+document.getElementById('panelToggle').addEventListener('click', () => panel.classList.toggle('collapsed'));
+const historyBtn = document.getElementById('history-btn'), historyPanel = document.getElementById('history-panel'), historyList = document.getElementById('history-list');
 historyBtn.addEventListener('click', () => { renderHistory(); historyPanel.classList.add('show'); });
-closeHistoryBtn.addEventListener('click', () => { historyPanel.classList.remove('show'); });
+document.getElementById('close-history').addEventListener('click', () => historyPanel.classList.remove('show'));
 
 function saveHistory(promptText, configObj) {
   let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
@@ -270,59 +345,39 @@ function saveHistory(promptText, configObj) {
   if (hist.length > 20) hist.pop();
   localStorage.setItem('ai_game_history', JSON.stringify(hist));
 }
-
 function renderHistory() {
   let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
-  if (hist.length === 0) {
-    historyList.innerHTML = '<p style="color:#666; font-size:13px; text-align:center;">暂无历史记录</p>';
-    return;
-  }
+  if (hist.length === 0) { historyList.innerHTML = '<p style="color:#666; text-align:center;">暂无</p>'; return; }
   historyList.innerHTML = hist.map((item, index) => `
     <div class="history-item" data-index="${index}">
       <div style="color:#fff; margin-bottom:4px;">${item.config.title}</div>
       <div style="font-size:12px; color:#889; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.prompt}</div>
-    </div>
-  `).join('');
-
+    </div>`).join('');
   document.querySelectorAll('.history-item').forEach(el => {
-    el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.index);
-      const item = hist[idx];
-      config = item.config;
-      promptEl.value = item.prompt;
-      buildScene(); startGame();
-      historyPanel.classList.remove('show');
-    });
+    el.addEventListener('click', () => { config = hist[parseInt(el.dataset.index)].config; promptEl.value = hist[parseInt(el.dataset.index)].prompt; startGame(); historyPanel.classList.remove('show'); });
   });
 }
 
-const promptEl = document.getElementById('prompt');
-const genBtn = document.getElementById('gen');
-const panel = document.getElementById('panel');
-document.getElementById('panelToggle').addEventListener('click', () => panel.classList.toggle('collapsed'));
-
 async function generate() {
   const text = promptEl.value.trim() || '做一个默认的3D跑酷游戏';
-  genBtn.disabled = true; genBtn.textContent = '生成中…';
+  genBtn.disabled = true; genBtn.textContent = 'AI构思中…';
   try {
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '生成失败');
-    config = data;
-    saveHistory(text, config);
+    config = data; saveHistory(text, config);
   } catch (err) {
     alert('AI生成失败：' + err.message); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏'; return;
   }
-  buildScene(); startGame();
-  genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏';
+  startGame(); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏';
 }
-
 genBtn.addEventListener('click', generate);
 document.querySelectorAll('.example').forEach(btn => {
   btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; generate(); });
 });
 
-buildScene(); updateHUD(); resize(); requestAnimationFrame(animate);
+// 初始化
+resize2D(); requestAnimationFrame(animate);
 </script>
 </body>
 </html>
