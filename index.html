@@ -5,19 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>AI游戏造梦器</title>
 <style>
-- { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
-#game { display:block; width:100%; height:100%; touch-action:none; }
-#hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
-#hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
-
-  /* 增加历史记录按钮 */
-  #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px); }
-
-  /* 历史记录面板 */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
+  #game { display:block; width:100%; height:100%; touch-action:none; }
+  #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
+  #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
+  
+  #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px); cursor:pointer; }
+  
   #history-panel { position:fixed; top:0; right:-100%; width:80%; max-width:300px; height:100%; background:rgba(15,15,25,0.95); z-index:20; transition:right 0.3s ease; padding:20px; overflow-y:auto; border-left:1px solid rgba(255,255,255,0.1); }
   #history-panel.show { right:0; }
-  .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:10px; color:#ccc; font-size:14px; }
+  .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:10px; color:#ccc; font-size:14px; cursor:pointer; }
   .history-item:active { background:rgba(78,161,255,0.2); }
 
   #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; }
@@ -25,6 +23,7 @@ html,body { width:100%; height:100%; overflow:hidden; background:#000; font-fami
   .btn-ctrl { width:64px; height:64px; border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-size:24px; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); touch-action:none; transition:0.1s; }
   .btn-ctrl:active, .btn-ctrl.on { background:rgba(78,161,255,.6); border-color:#4ea1ff; transform:scale(0.92); box-shadow:0 0 15px #4ea1ff; }
   #jump { width:76px; height:76px; font-size:18px; }
+  
   #panel { position:fixed; left:0; right:0; bottom:0; background:rgba(12,12,22,.95); border-top:1px solid rgba(255,255,255,.15); border-radius:18px 18px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom)); z-index:8; transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter:blur(12px); }
   #panel.collapsed { transform:translateY(calc(100% - 46px)); }
   #panelToggle { height:34px; display:flex; align-items:center; justify-content:center; color:#889; font-size:13px; cursor:pointer; margin-bottom:8px; }
@@ -32,18 +31,19 @@ html,body { width:100%; height:100%; overflow:hidden; background:#000; font-fami
   #prompt { width:100%; height:48px; resize:none; border-radius:12px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.05); color:#fff; padding:10px 12px; font-size:15px; outline:none; line-height:1.4; }
   #prompt:focus { border-color:#4ea1ff; box-shadow:0 0 10px rgba(78,161,255,.3); }
   .row { display:flex; gap:8px; margin-top:10px; align-items:center; }
-  #gen { flex:1; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; box-shadow:0 4px 15px rgba(78,161,255,.4); }
+  #gen { flex:1; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; box-shadow:0 4px 15px rgba(78,161,255,.4); cursor:pointer; }
   #gen:active { filter:brightness(0.9); transform:translateY(2px); }
   #gen:disabled { opacity:.6; }
   #examples { display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
-  .example { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#cfd8ff; font-size:13px; white-space:nowrap; }
+  .example { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#cfd8ff; font-size:13px; white-space:nowrap; cursor:pointer; }
   .example:active { background:rgba(255,255,255,.1); }
+  
   #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.7); z-index:20; padding:20px; backdrop-filter:blur(4px); }
   #overlay.show { display:flex; }
   #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px 24px; text-align:center; color:#fff; width:100%; max-width:340px; }
   #overlay h2 { font-size:24px; margin-bottom:10px; }
   #overlay p { color:#aab; margin-bottom:20px; font-size:14px; }
-  #overlay button { width:100%; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; }
+  #overlay button { width:100%; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -59,7 +59,7 @@ html,body { width:100%; height:100%; overflow:hidden; background:#000; font-fami
 <div id="history-panel">
   <h3 style="color:#fff; margin-bottom:15px; font-size:16px;">历史生成记录</h3>
   <div id="history-list"></div>
-  <button id="close-history" style="width:100%; padding:10px; margin-top:20px; background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:8px;">关闭</button>
+  <button id="close-history" style="width:100%; padding:10px; margin-top:20px; background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:8px; cursor:pointer;">关闭</button>
 </div>
 
 <div id="controls">
@@ -242,11 +242,11 @@ function update(dt, time) {
 
   for (const o of obstacles) {
     if (Math.abs(o.position.x - player.position.x) < o.userData.halfWidth + 0.4 && Math.abs(o.position.y - player.position.y) < o.userData.halfHeight + 0.8 && Math.abs(o.position.z - player.position.z) < 0.5 + 0.5) {
-      state = 'over'; statusEl.textContent = '游戏结束'; showOverlay('💥 撞到了！', 你跑了 ${score} 分，目标是 ${config.targetScore} 分。); return;
+      state = 'over'; statusEl.textContent = '游戏结束'; showOverlay('💥 撞到了！', `你跑了 ${score} 分，目标是 ${config.targetScore} 分。`); return;
     }
   }
   distance += config.speed * dt; score = Math.floor(distance / 2); updateHUD();
-  if (score >= config.targetScore) { state = 'win'; statusEl.textContent = '通关！'; showOverlay('🎉 通关！', 你完成了《${config.title}》，得分 ${score}。); }
+  if (score >= config.targetScore) { state = 'win'; statusEl.textContent = '通关！'; showOverlay('🎉 通关！', `你完成了《${config.title}》，得分 ${score}。`); }
 }
 
 function animate(now) {
@@ -255,7 +255,6 @@ function animate(now) {
   update(dt, now); composer.render();
 }
 
-/* --- 历史记录逻辑 --- */
 const historyBtn = document.getElementById('history-btn');
 const historyPanel = document.getElementById('history-panel');
 const historyList = document.getElementById('history-list');
@@ -266,10 +265,9 @@ closeHistoryBtn.addEventListener('click', () => { historyPanel.classList.remove(
 
 function saveHistory(promptText, configObj) {
   let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
-  // 去重（如果prompt一样就更新）
   hist = hist.filter(item => item.prompt !== promptText);
   hist.unshift({ prompt: promptText, config: configObj, time: Date.now() });
-  if (hist.length > 20) hist.pop(); // 只存最近20条
+  if (hist.length > 20) hist.pop();
   localStorage.setItem('ai_game_history', JSON.stringify(hist));
 }
 
@@ -279,7 +277,12 @@ function renderHistory() {
     historyList.innerHTML = '<p style="color:#666; font-size:13px; text-align:center;">暂无历史记录</p>';
     return;
   }
-  historyList.innerHTML = hist.map((item, index) =>     <div class="history-item" data-index="${index}">       <div style="color:#fff; margin-bottom:4px;">${item.config.title}</div>       <div style="font-size:12px; color:#889; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.prompt}</div>     </div>  ).join('');
+  historyList.innerHTML = hist.map((item, index) => `
+    <div class="history-item" data-index="${index}">
+      <div style="color:#fff; margin-bottom:4px;">${item.config.title}</div>
+      <div style="font-size:12px; color:#889; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.prompt}</div>
+    </div>
+  `).join('');
 
   document.querySelectorAll('.history-item').forEach(el => {
     el.addEventListener('click', () => {
@@ -306,13 +309,14 @@ async function generate() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '生成失败');
     config = data;
-    saveHistory(text, config); // 保存到历史
+    saveHistory(text, config);
   } catch (err) {
     alert('AI生成失败：' + err.message); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏'; return;
   }
   buildScene(); startGame();
   genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏';
 }
+
 genBtn.addEventListener('click', generate);
 document.querySelectorAll('.example').forEach(btn => {
   btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; generate(); });
