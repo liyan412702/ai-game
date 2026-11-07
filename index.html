@@ -51,9 +51,9 @@
 <canvas id="canvas2d" style="display:none;"></canvas>
 
 <div id="hud">
-  <div id="hud-title" style="font-size:16px; margin-bottom:4px;">AI造梦器</div>
-  <div id="hud-main">得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
-  <div id="status">生成后开始</div>
+  <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
+  <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
+  <div id="status" style="margin-top:2px; color:#aab;">生成后开始</div>
 </div>
 
 <button id="history-btn">📜 历史记录</button>
@@ -121,6 +121,7 @@ let config = { gameType:'parkour', theme:'default', title:'默认游戏', speed:
 let state = 'ready';
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
 const statusEl = document.getElementById('status');
+const hudMain = document.getElementById('hud-main');
 
 function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
 function hideOverlay() { overlay.classList.remove('show'); }
@@ -194,7 +195,7 @@ function spawnObstacle3D() {
   mesh.userData = { hw: size, hh: size }; scene.add(mesh); obstacles.push(mesh);
 }
 function updateHUD3D() { 
-  document.getElementById('hud-main').innerHTML = `得分 <span class="big">${p3dScore}</span> / <span>${config.targetScore||200}</span>`;
+  if (hudMain) hudMain.innerHTML = `得分 <span class="big">${p3dScore}</span> / <span>${config.targetScore||200}</span>`;
 }
 
 
@@ -217,7 +218,6 @@ function build2DScene() {
   spawnedCount2d = 0;
 }
 
-// 点击建塔
 canvas2d.addEventListener('pointerdown', (e) => {
   if (state !== 'playing' || config.gameType !== 'tower') return;
   const x = e.clientX, y = e.clientY;
@@ -231,12 +231,10 @@ function update2D(dt) {
   if (state !== 'playing' || !game2dRunning) return;
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
   
-  // 画路径
   ctx.strokeStyle = '#333'; ctx.lineWidth = 40; ctx.beginPath();
   ctx.moveTo(canvas2d.width, canvas2d.height / 2);
   ctx.lineTo(0, canvas2d.height / 2); ctx.stroke();
 
-  // 生成怪物
   spawnTimer2d -= dt;
   const maxWaves = config.waves || 5;
   const totalEnemies = maxWaves * 5;
@@ -254,7 +252,6 @@ function update2D(dt) {
     if (spawnedCount2d % 5 === 0) wave2d++;
   }
 
-  // 更新怪物
   for (let i = enemies2d.length - 1; i >= 0; i--) {
     const en = enemies2d[i]; en.x -= en.speed * dt;
     ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x - 15, en.y - 15, 30, 30);
@@ -263,7 +260,6 @@ function update2D(dt) {
     if (baseHp2d <= 0) { state = 'over'; game2dRunning = false; showOverlay('💀 基地被摧毁！', `坚持到了第 ${wave2d} 波`); return; }
   }
 
-  // 更新塔
   towers2d.forEach(t => {
     t.cooldown -= dt;
     if (t.cooldown <= 0) {
@@ -274,7 +270,6 @@ function update2D(dt) {
     ctx.strokeStyle = 'rgba(0,255,255,0.2)'; ctx.beginPath(); ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2); ctx.stroke();
   });
 
-  // 更新子弹
   for (let i = bullets2d.length - 1; i >= 0; i--) {
     const b = bullets2d[i];
     if (!b.target || b.target.hp <= 0) { bullets2d.splice(i, 1); continue; }
@@ -284,17 +279,19 @@ function update2D(dt) {
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
   }
 
-  // 清理死怪
   enemies2d = enemies2d.filter(e => e.hp > 0);
   
-  // 胜利判定
   if (spawnedCount2d >= totalEnemies && enemies2d.length === 0 && state === 'playing') {
       state = 'win'; game2dRunning = false; showOverlay('🎉 防守成功！', `你抵挡住了所有怪物！`); return;
   }
 
-  // HUD - 统一在这里更新，修复报错
-  document.getElementById('hud-main').innerHTML = `<span style="font-size:24px; font-weight:800; color:#4ea1ff;">${baseHp2d} HP</span> | 金币 ${coins2d}`;
-  document.getElementById('status').textContent = `波次: ${wave2d}/${maxWaves} | 点击屏幕建塔(50金币)`;
+  // 带防御性判断的 UI 更新
+  if (hudMain) {
+      hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${baseHp2d} HP</span> | 金币 ${coins2d}`;
+  }
+  if (statusEl) {
+      statusEl.textContent = `波次: ${wave2d}/${maxWaves} | 点击屏幕建塔(50金币)`;
+  }
 }
 
 
@@ -306,17 +303,22 @@ function animate(now) {
   requestAnimationFrame(animate);
   const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
   
-  if (config.gameType === 'tower') {
-    update2D(dt);
-  } else {
-    update3D(dt, now); composer.render();
+  try {
+      if (config.gameType === 'tower') {
+        update2D(dt);
+      } else {
+        update3D(dt, now); composer.render();
+      }
+  } catch(e) {
+      console.error("渲染异常:", e);
+      // 不中断循环，防止直接卡死
   }
 }
 
 function startGame() {
   hideOverlay(); document.getElementById('panel').classList.add('collapsed');
   state = 'playing';
-  statusEl.textContent = '进行中 · ' + config.title;
+  if (statusEl) statusEl.textContent = '进行中 · ' + config.title;
   document.getElementById('hud-title').textContent = config.title;
 
   if (config.gameType === 'tower') {
