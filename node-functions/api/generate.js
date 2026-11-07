@@ -1,9 +1,23 @@
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { prompt } = req.body;
-  if (!prompt) return res.status(400).json({ error: '缺少描述' });
+export default async function onRequest({ request }) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 
   try {
+    const body = await request.json();
+    const prompt = body.prompt;
+
+    if (!prompt) {
+      return new Response(JSON.stringify({ error: '缺少描述' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 调用 DeepSeek
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -24,20 +38,42 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const err = await response.text();
-      return res.status(502).json({ error: 'DeepSeek调用失败', detail: err });
+      return new Response(JSON.stringify({ error: 'DeepSeek调用失败', detail: err }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-    if (!content || content.trim() === '') return res.status(502).json({ error: 'AI返回空内容，请重试' });
+    
+    if (!content || content.trim() === '') {
+       return new Response(JSON.stringify({ error: 'AI返回空内容，请重试' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     const config = JSON.parse(content);
     const required = ['theme','title','speed','jumpForce','gravity','density','targetScore'];
     for (const k of required) {
-      if (!(k in config)) return res.status(502).json({ error: `缺少字段: ${k}` });
+      if (!(k in config)) {
+        return new Response(JSON.stringify({ error: `缺少字段: ${k}` }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     }
-    return res.status(200).json(config);
+
+    return new Response(JSON.stringify(config), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
