@@ -3,23 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>AI游戏造梦器 · 视觉升级版</title>
+<title>AI游戏造梦器</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
-  #game { display:block; width:100%; height:100%; touch-action:none; }
+- { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
+#game { display:block; width:100%; height:100%; touch-action:none; }
+#hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
+#hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
 
-  #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
-  #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
+  /* 增加历史记录按钮 */
+  #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px); }
+
+  /* 历史记录面板 */
+  #history-panel { position:fixed; top:0; right:-100%; width:80%; max-width:300px; height:100%; background:rgba(15,15,25,0.95); z-index:20; transition:right 0.3s ease; padding:20px; overflow-y:auto; border-left:1px solid rgba(255,255,255,0.1); }
+  #history-panel.show { right:0; }
+  .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:10px; color:#ccc; font-size:14px; }
+  .history-item:active { background:rgba(78,161,255,0.2); }
 
   #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; }
   .pad { display:flex; gap:12px; pointer-events:auto; }
   .btn-ctrl { width:64px; height:64px; border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-size:24px; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); touch-action:none; transition:0.1s; }
   .btn-ctrl:active, .btn-ctrl.on { background:rgba(78,161,255,.6); border-color:#4ea1ff; transform:scale(0.92); box-shadow:0 0 15px #4ea1ff; }
   #jump { width:76px; height:76px; font-size:18px; }
-
   #panel { position:fixed; left:0; right:0; bottom:0; background:rgba(12,12,22,.95); border-top:1px solid rgba(255,255,255,.15); border-radius:18px 18px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom)); z-index:8; transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter:blur(12px); }
   #panel.collapsed { transform:translateY(calc(100% - 46px)); }
   #panelToggle { height:34px; display:flex; align-items:center; justify-content:center; color:#889; font-size:13px; cursor:pointer; margin-bottom:8px; }
@@ -33,12 +38,11 @@
   #examples { display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
   .example { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#cfd8ff; font-size:13px; white-space:nowrap; }
   .example:active { background:rgba(255,255,255,.1); }
-
   #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.7); z-index:20; padding:20px; backdrop-filter:blur(4px); }
   #overlay.show { display:flex; }
-  #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px 24px; text-align:center; color:#fff; width:100%; max-width:340px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
-  #overlay h2 { font-size:24px; margin-bottom:10px; text-shadow:0 0 10px rgba(255,255,255,0.3); }
-  #overlay p { color:#aab; margin-bottom:20px; font-size:14px; line-height:1.5; }
+  #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px 24px; text-align:center; color:#fff; width:100%; max-width:340px; }
+  #overlay h2 { font-size:24px; margin-bottom:10px; }
+  #overlay p { color:#aab; margin-bottom:20px; font-size:14px; }
   #overlay button { width:100%; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; }
 </style>
 </head>
@@ -48,6 +52,14 @@
 <div id="hud">
   <div>得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
   <div id="status">生成后开始</div>
+</div>
+
+<button id="history-btn">📜 历史记录</button>
+
+<div id="history-panel">
+  <h3 style="color:#fff; margin-bottom:15px; font-size:16px;">历史生成记录</h3>
+  <div id="history-list"></div>
+  <button id="close-history" style="width:100%; padding:10px; margin-top:20px; background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:8px;">关闭</button>
 </div>
 
 <div id="controls">
@@ -62,14 +74,14 @@
 
 <div id="panel">
   <div id="panelToggle"></div>
-  <textarea id="prompt" placeholder="描述你想玩的3D跑酷（比如：赛博朋克，霓虹灯，速度快，障碍密集）"></textarea>
+  <textarea id="prompt" placeholder="描述你想玩的游戏（如：赛博朋克跑酷 / 做个简单的塔防）"></textarea>
   <div class="row">
     <button id="gen">✨ 生成游戏</button>
   </div>
   <div id="examples">
-    <button class="example" data-p="赛博朋克城市，霓虹灯，速度快，障碍密集">赛博朋克·高难</button>
-    <button class="example" data-p="森林里轻松悠闲的跑酷，障碍少一点">森林·轻松</button>
-    <button class="example" data-p="太空星空，失重感，速度很快">太空·高速</button>
+    <button class="example" data-p="赛博朋克城市，速度快，障碍密集">赛博朋克·跑酷</button>
+    <button class="example" data-p="森林里轻松悠闲的跑酷">森林·跑酷</button>
+    <button class="example" data-p="做一个2D塔防游戏，怪物很多">2D塔防（开发中）</button>
   </div>
 </div>
 
@@ -107,26 +119,18 @@ const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerH
 camera.position.set(0, 6, 11);
 camera.lookAt(0, 1.5, -12);
 
-// 后处理特效（泛光）
 const renderScene = new RenderPass(scene, camera);
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-bloomPass.threshold = 0.2;
-bloomPass.strength = 1.2;
-bloomPass.radius = 0.5;
+bloomPass.threshold = 0.2; bloomPass.strength = 1.2; bloomPass.radius = 0.5;
 const composer = new EffectComposer(renderer);
-composer.addPass(renderScene);
-composer.addPass(bloomPass);
+composer.addPass(renderScene); composer.addPass(bloomPass);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
-  camera.aspect = w / h;
-  camera.fov = h > w ? 78 : 65;
-  camera.updateProjectionMatrix();
-  renderer.setSize(w, h);
-  composer.setSize(w, h);
+  camera.aspect = w / h; camera.fov = h > w ? 78 : 65;
+  camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h);
 }
 window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', () => setTimeout(resize, 300));
 
 const THEMES = {
   default: { bg:0x050508, fog:0x050508, ground:0x1b1b2a, player:0x4ea1ff, obstacle:0xff5c8a, light:0xffffff, ambient:0.4 },
@@ -138,12 +142,10 @@ const THEMES = {
 };
 
 let config = { theme:'default', title:'默认跑酷', speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200 };
-
 let ground, player, ambientLight, dirLight, gridHelper;
 const obstacles = [];
 
 function buildScene() {
-  // 清空场景
   for (const o of obstacles) scene.remove(o);
   obstacles.length = 0;
   if (ground) { scene.remove(ground); ground.geometry.dispose(); ground.material.dispose(); }
@@ -156,40 +158,17 @@ function buildScene() {
   scene.background = new THREE.Color(t.bg);
   scene.fog = new THREE.Fog(t.fog, 40, 150);
 
-  // 地面
-  ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(30, 300),
-    new THREE.MeshStandardMaterial({ color:t.ground, roughness:0.8, metalness:0.2 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.z = -140;
-  scene.add(ground);
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 300), new THREE.MeshStandardMaterial({ color:t.ground, roughness:0.8, metalness:0.2 }));
+  ground.rotation.x = -Math.PI / 2; ground.position.z = -140; scene.add(ground);
 
-  // 科技网格线
   gridHelper = new THREE.GridHelper(300, 150, t.player, t.ground);
-  gridHelper.position.z = -140;
-  gridHelper.position.y = 0.01;
-  scene.add(gridHelper);
+  gridHelper.position.z = -140; gridHelper.position.y = 0.01; scene.add(gridHelper);
 
-  // 玩家（发光的悬浮方块）
-  const playerGeo = new THREE.BoxGeometry(1, 1.6, 1);
-  const playerMat = new THREE.MeshStandardMaterial({ 
-    color: t.player, 
-    emissive: t.player, 
-    emissiveIntensity: 1.5, // 高发光，配合Bloom特效
-    roughness: 0.2,
-    metalness: 0.8
-  });
-  player = new THREE.Mesh(playerGeo, playerMat);
-  player.position.set(0, 1, 0);
-  scene.add(player);
+  player = new THREE.Mesh(new THREE.BoxGeometry(1, 1.6, 1), new THREE.MeshStandardMaterial({ color: t.player, emissive: t.player, emissiveIntensity: 1.5, roughness: 0.2, metalness: 0.8 }));
+  player.position.set(0, 1, 0); scene.add(player);
 
-  ambientLight = new THREE.AmbientLight(0xffffff, t.ambient);
-  scene.add(ambientLight);
-  
-  dirLight = new THREE.DirectionalLight(t.light, 1.5);
-  dirLight.position.set(5, 15, 5);
-  scene.add(dirLight);
+  ambientLight = new THREE.AmbientLight(0xffffff, t.ambient); scene.add(ambientLight);
+  dirLight = new THREE.DirectionalLight(t.light, 1.5); dirLight.position.set(5, 15, 5); scene.add(dirLight);
 }
 
 let state = 'ready';
@@ -202,64 +181,28 @@ function bindHold(el, on, off) {
   el.addEventListener('touchstart', start, { passive:false });
   el.addEventListener('touchend', end, { passive:false });
   el.addEventListener('touchcancel', end, { passive:false });
-  el.addEventListener('mousedown', start);
-  el.addEventListener('mouseup', end);
-  el.addEventListener('mouseleave', end);
+  el.addEventListener('mousedown', start); el.addEventListener('mouseup', end); el.addEventListener('mouseleave', end);
 }
 bindHold(document.getElementById('left'), () => keys.left = true, () => keys.left = false);
 bindHold(document.getElementById('right'), () => keys.right = true, () => keys.right = false);
-document.getElementById('jump').addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  if (state === 'playing' && onGround) { vy = config.jumpForce; onGround = false; }
-}, { passive:false });
-
-canvas.addEventListener('touchstart', (e) => {
-  const x = e.touches[0].clientX;
-  if (x > window.innerWidth / 2 && state === 'playing' && onGround) {
-    vy = config.jumpForce; onGround = false;
-  }
-}, { passive:true });
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
-  if (e.code === 'Space' && state === 'playing' && onGround) { e.preventDefault(); vy = config.jumpForce; onGround = false; }
-});
-document.addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
-});
+document.getElementById('jump').addEventListener('touchstart', (e) => { e.preventDefault(); if (state === 'playing' && onGround) { vy = config.jumpForce; onGround = false; } }, { passive:false });
+canvas.addEventListener('touchstart', (e) => { const x = e.touches[0].clientX; if (x > window.innerWidth / 2 && state === 'playing' && onGround) { vy = config.jumpForce; onGround = false; } }, { passive:true });
+document.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true; if (e.code === 'Space' && state === 'playing' && onGround) { e.preventDefault(); vy = config.jumpForce; onGround = false; } });
+document.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false; });
 
 function spawnObstacle() {
   const t = THEMES[config.theme] || THEMES.default;
-  // 把障碍物改成发光的旋转八面体（晶体感）
   const size = 1 + Math.random() * 1.2;
   const geo = new THREE.OctahedronGeometry(size);
-  const mat = new THREE.MeshStandardMaterial({ 
-    color: t.obstacle, 
-    emissive: t.obstacle, 
-    emissiveIntensity: 1.2, 
-    roughness: 0.1,
-    wireframe: Math.random() > 0.5 // 一半实体，一半线框，增加变化
-  });
+  const mat = new THREE.MeshStandardMaterial({ color: t.obstacle, emissive: t.obstacle, emissiveIntensity: 1.2, roughness: 0.1, wireframe: Math.random() > 0.5 });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set((Math.random() - 0.5) * 8, size, -100);
-  
-  mesh.userData.halfWidth = size;
-  mesh.userData.halfHeight = size;
-  mesh.userData.rotSpeed = (Math.random() - 0.5) * 4;
-  
-  scene.add(mesh);
-  obstacles.push(mesh);
+  mesh.userData.halfWidth = size; mesh.userData.halfHeight = size; mesh.userData.rotSpeed = (Math.random() - 0.5) * 4;
+  scene.add(mesh); obstacles.push(mesh);
 }
 
-const scoreEl = document.getElementById('score');
-const targetEl = document.getElementById('target');
-const statusEl = document.getElementById('status');
-const overlay = document.getElementById('overlay');
-const ovTitle = document.getElementById('ovTitle');
-const ovDesc = document.getElementById('ovDesc');
-const ovBtn = document.getElementById('ovBtn');
+const scoreEl = document.getElementById('score'), targetEl = document.getElementById('target'), statusEl = document.getElementById('status');
+const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
 
 function updateHUD() { scoreEl.textContent = score; targetEl.textContent = config.targetScore; }
 function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
@@ -273,79 +216,81 @@ function startGame() {
   state = 'playing';
   player.position.set(0, 1, 0);
   statusEl.textContent = '进行中 · ' + config.title;
-  updateHUD();
-  hideOverlay();
-  document.getElementById('panel').classList.add('collapsed');
+  updateHUD(); hideOverlay(); document.getElementById('panel').classList.add('collapsed');
 }
 
 let lastTime = performance.now();
-
 function update(dt, time) {
   if (state !== 'playing') return;
-
   const moveSpeed = 10;
   if (keys.left) playerX -= moveSpeed * dt;
   if (keys.right) playerX += moveSpeed * dt;
   playerX = Math.max(-5, Math.min(5, playerX));
-
-  if (!onGround) {
-    vy -= config.gravity * dt;
-    playerY += vy * dt;
-    if (playerY <= 1) { playerY = 1; vy = 0; onGround = true; }
-  }
-  player.position.x = playerX;
-  player.position.y = playerY;
-  
-  // 玩家自身旋转和心跳动效
+  if (!onGround) { vy -= config.gravity * dt; playerY += vy * dt; if (playerY <= 1) { playerY = 1; vy = 0; onGround = true; } }
+  player.position.x = playerX; player.position.y = playerY;
   player.rotation.y += dt * 2;
-  const scale = 1 + Math.sin(time * 0.01) * 0.05;
-  player.scale.set(scale, scale, scale);
+  const scale = 1 + Math.sin(time * 0.01) * 0.05; player.scale.set(scale, scale, scale);
 
-  const speed = config.speed;
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const o = obstacles[i];
-    o.position.z += speed * dt;
-    // 障碍物自转
-    o.rotation.x += o.userData.rotSpeed * dt;
-    o.rotation.y += o.userData.rotSpeed * dt;
-    
+    o.position.z += config.speed * dt;
+    o.rotation.x += o.userData.rotSpeed * dt; o.rotation.y += o.userData.rotSpeed * dt;
     if (o.position.z > 8) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); obstacles.splice(i, 1); }
   }
-
   spawnTimer -= dt;
-  const interval = 0.9 / Math.max(0.2, config.density);
-  if (spawnTimer <= 0) { spawnObstacle(); spawnTimer = interval; }
+  if (spawnTimer <= 0) { spawnObstacle(); spawnTimer = 0.9 / Math.max(0.2, config.density); }
 
-  // 碰撞检测
   for (const o of obstacles) {
-    // 因为是八面体，判定稍微宽松一点
-    if (Math.abs(o.position.x - player.position.x) < o.userData.halfWidth + 0.4 &&
-        Math.abs(o.position.y - player.position.y) < o.userData.halfHeight + 0.8 &&
-        Math.abs(o.position.z - player.position.z) < 0.5 + 0.5) {
-      state = 'over';
-      statusEl.textContent = '游戏结束';
-      showOverlay('💥 撞到了！', `你跑了 ${score} 分，目标是 ${config.targetScore} 分。`);
-      return;
+    if (Math.abs(o.position.x - player.position.x) < o.userData.halfWidth + 0.4 && Math.abs(o.position.y - player.position.y) < o.userData.halfHeight + 0.8 && Math.abs(o.position.z - player.position.z) < 0.5 + 0.5) {
+      state = 'over'; statusEl.textContent = '游戏结束'; showOverlay('💥 撞到了！', 你跑了 ${score} 分，目标是 ${config.targetScore} 分。); return;
     }
   }
-
-  distance += speed * dt;
-  score = Math.floor(distance / 2);
-  updateHUD();
-  if (score >= config.targetScore) {
-    state = 'win';
-    statusEl.textContent = '通关！';
-    showOverlay('🎉 通关！', `你完成了《${config.title}》，得分 ${score}。`);
-  }
+  distance += config.speed * dt; score = Math.floor(distance / 2); updateHUD();
+  if (score >= config.targetScore) { state = 'win'; statusEl.textContent = '通关！'; showOverlay('🎉 通关！', 你完成了《${config.title}》，得分 ${score}。); }
 }
 
 function animate(now) {
   requestAnimationFrame(animate);
-  const dt = Math.min((now - lastTime) / 1000, 0.05);
-  lastTime = now;
-  update(dt, now);
-  // 使用 composer 渲染，而不是 renderer
-  composer.render();
+  const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
+  update(dt, now); composer.render();
+}
+
+/* --- 历史记录逻辑 --- */
+const historyBtn = document.getElementById('history-btn');
+const historyPanel = document.getElementById('history-panel');
+const historyList = document.getElementById('history-list');
+const closeHistoryBtn = document.getElementById('close-history');
+
+historyBtn.addEventListener('click', () => { renderHistory(); historyPanel.classList.add('show'); });
+closeHistoryBtn.addEventListener('click', () => { historyPanel.classList.remove('show'); });
+
+function saveHistory(promptText, configObj) {
+  let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
+  // 去重（如果prompt一样就更新）
+  hist = hist.filter(item => item.prompt !== promptText);
+  hist.unshift({ prompt: promptText, config: configObj, time: Date.now() });
+  if (hist.length > 20) hist.pop(); // 只存最近20条
+  localStorage.setItem('ai_game_history', JSON.stringify(hist));
+}
+
+function renderHistory() {
+  let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
+  if (hist.length === 0) {
+    historyList.innerHTML = '<p style="color:#666; font-size:13px; text-align:center;">暂无历史记录</p>';
+    return;
+  }
+  historyList.innerHTML = hist.map((item, index) =>     <div class="history-item" data-index="${index}">       <div style="color:#fff; margin-bottom:4px;">${item.config.title}</div>       <div style="font-size:12px; color:#889; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.prompt}</div>     </div>  ).join('');
+
+  document.querySelectorAll('.history-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.index);
+      const item = hist[idx];
+      config = item.config;
+      promptEl.value = item.prompt;
+      buildScene(); startGame();
+      historyPanel.classList.remove('show');
+    });
+  });
 }
 
 const promptEl = document.getElementById('prompt');
@@ -356,24 +301,16 @@ document.getElementById('panelToggle').addEventListener('click', () => panel.cla
 async function generate() {
   const text = promptEl.value.trim() || '做一个默认的3D跑酷游戏';
   genBtn.disabled = true; genBtn.textContent = '生成中…';
-  
   try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: text })
-    });
+    const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '生成失败');
     config = data;
+    saveHistory(text, config); // 保存到历史
   } catch (err) {
-    alert('AI生成失败：' + err.message);
-    genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏';
-    return;
+    alert('AI生成失败：' + err.message); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏'; return;
   }
-
-  buildScene();
-  startGame();
+  buildScene(); startGame();
   genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏';
 }
 genBtn.addEventListener('click', generate);
@@ -381,10 +318,7 @@ document.querySelectorAll('.example').forEach(btn => {
   btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; generate(); });
 });
 
-buildScene();
-updateHUD();
-resize();
-requestAnimationFrame(animate);
+buildScene(); updateHUD(); resize(); requestAnimationFrame(animate);
 </script>
 </body>
 </html>
