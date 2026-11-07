@@ -75,12 +75,12 @@
 
 <div id="panel">
   <div id="panelToggle"></div>
-  <textarea id="prompt" placeholder="描述你想玩的游戏（如：赛博朋克跑酷 / 做个简单的塔防）"></textarea>
+  <textarea id="prompt" placeholder="描述你想玩的游戏（如：赛博朋克跑酷 / 2D塔防 / 二次元换装）"></textarea>
   <div class="row"><button id="gen">✨ 生成游戏</button></div>
   <div id="examples">
     <button class="example" data-p="赛博朋克城市，速度快，障碍密集">赛博朋克·跑酷</button>
-    <button class="example" data-p="森林里轻松悠闲的跑酷">森林·跑酷</button>
     <button class="example" data-p="做一个2D塔防游戏，怪物很多">2D·塔防</button>
+    <button class="example" data-p="做一个二次元换装游戏，霓虹色彩">二次元·换装</button>
   </div>
 </div>
 
@@ -107,21 +107,20 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-// --- 公共变量 ---
 const THEMES = {
   default: { bg:0x050508, ground:0x1b1b2a, player:0x4ea1ff, obstacle:0xff5c8a, light:0xffffff, ambient:0.4 },
   cyber:   { bg:0x050510, ground:0x111128, player:0x00ffff, obstacle:0xff0066, light:0x8888ff, ambient:0.3 },
-  forest:  { bg:0x0a1510, ground:0x1f3b25, player:0x9be15d, obstacle:0x40c057, light:0xc8ffb0, ambient:0.6 },
-  desert:  { bg:0x1f1508, ground:0x8a6a3a, player:0xffd166, obstacle:0xd64545, light:0xffe0a0, ambient:0.7 },
-  snow:    { bg:0x101820, ground:0xdfe9f5, player:0x4ea1ff, obstacle:0x3a6ea5, light:0xffffff, ambient:0.8 },
-  space:   { bg:0x000000, ground:0x0a0a15, player:0xff9f43, obstacle:0x9b59ff, light:0xaaccff, ambient:0.2 }
+  forest:  { bg:0x0a1510, ground:0x1f3b25, player:0x9be15d, obstacle:0x40c057, light:0xc8ffb0, ambient:0.6 }
 };
-
-let config = { gameType:'parkour', theme:'default', title:'默认游戏', speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200, waves:5, enemyHp:100, coins:200 };
+let config = { 
+    gameType:'parkour', theme:'default', title:'默认游戏', 
+    speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200, 
+    waves:5, enemyHp:100, coins:200,
+    hairColor: '#ff0066', clothesColor: '#00ffff', pantsColor: '#ffcc00'
+};
 let state = 'ready';
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
-const statusEl = document.getElementById('status');
-const hudMain = document.getElementById('hud-main');
+const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main');
 
 function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
 function hideOverlay() { overlay.classList.remove('show'); }
@@ -194,9 +193,7 @@ function spawnObstacle3D() {
   mesh.position.set((Math.random() - 0.5) * 8, size, -100);
   mesh.userData = { hw: size, hh: size }; scene.add(mesh); obstacles.push(mesh);
 }
-function updateHUD3D() { 
-  if (hudMain) hudMain.innerHTML = `得分 <span class="big">${p3dScore}</span> / <span>${config.targetScore||200}</span>`;
-}
+function updateHUD3D() { if (hudMain) hudMain.innerHTML = `得分 <span class="big">${p3dScore}</span> / <span>${config.targetScore||200}</span>`; }
 
 
 // ==========================================
@@ -208,6 +205,7 @@ let enemies2d = [], towers2d = [], bullets2d = [];
 let game2dRunning = false, coins2d = 0, baseHp2d = 100, wave2d = 1, spawnTimer2d = 0, spawnedCount2d = 0;
 
 function resize2D() { canvas2d.width = window.innerWidth; canvas2d.height = window.innerHeight; }
+
 function build2DScene() {
   resize2D();
   coins2d = config.coins || 200;
@@ -217,15 +215,6 @@ function build2DScene() {
   spawnTimer2d = 0;
   spawnedCount2d = 0;
 }
-
-canvas2d.addEventListener('pointerdown', (e) => {
-  if (state !== 'playing' || config.gameType !== 'tower') return;
-  const x = e.clientX, y = e.clientY;
-  if (coins2d >= 50) {
-    coins2d -= 50;
-    towers2d.push({ x, y, range: 120, cooldown: 0 });
-  }
-});
 
 function update2D(dt) {
   if (state !== 'playing' || !game2dRunning) return;
@@ -242,11 +231,8 @@ function update2D(dt) {
   if (spawnTimer2d <= 0 && spawnedCount2d < totalEnemies) {
     spawnedCount2d++;
     enemies2d.push({ 
-        x: canvas2d.width + 20, 
-        y: canvas2d.height / 2, 
-        hp: config.enemyHp || 100, 
-        maxHp: config.enemyHp || 100, 
-        speed: 30 + wave2d * 10 
+        x: canvas2d.width + 20, y: canvas2d.height / 2, 
+        hp: config.enemyHp || 100, maxHp: config.enemyHp || 100, speed: 30 + wave2d * 10 
     });
     spawnTimer2d = 1.0;
     if (spawnedCount2d % 5 === 0) wave2d++;
@@ -285,14 +271,77 @@ function update2D(dt) {
       state = 'win'; game2dRunning = false; showOverlay('🎉 防守成功！', `你抵挡住了所有怪物！`); return;
   }
 
-  // 带防御性判断的 UI 更新
-  if (hudMain) {
-      hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${baseHp2d} HP</span> | 金币 ${coins2d}`;
-  }
-  if (statusEl) {
-      statusEl.textContent = `波次: ${wave2d}/${maxWaves} | 点击屏幕建塔(50金币)`;
-  }
+  if (hudMain) hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${baseHp2d} HP</span> | 金币 ${coins2d}`;
+  if (statusEl) statusEl.textContent = `波次: ${wave2d}/${maxWaves} | 点击屏幕建塔(50金币)`;
 }
+
+
+// ==========================================
+// 引擎三：换装 (Canvas 2D)
+// ==========================================
+let dressupColors = [];
+let dressupParts = { hair: 0, clothes: 0, pants: 0 };
+
+function buildDressupScene() {
+  resize2D();
+  dressupColors = [config.hairColor || '#ff0066', config.clothesColor || '#00ffff', config.pantsColor || '#ffcc00', '#ffffff', '#ffaa00'];
+  dressupParts = { hair: 0, clothes: 1, pants: 2 }; // 默认索引
+  if (hudMain) hudMain.innerHTML = `点击人物换色`;
+  if (statusEl) statusEl.textContent = `点击头部/身体/腿部 切换颜色`;
+}
+
+function updateDressup() {
+  if (state !== 'playing') return;
+  ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+  
+  const cx = canvas2d.width / 2;
+  const cy = canvas2d.height / 2 - 50;
+  
+  // 画腿
+  ctx.fillStyle = dressupColors[dressupParts.pants];
+  ctx.fillRect(cx - 30, cy + 60, 25, 80); // 左腿
+  ctx.fillRect(cx + 5, cy + 60, 25, 80);  // 右腿
+  
+  // 画身体
+  ctx.fillStyle = dressupColors[dressupParts.clothes];
+  ctx.fillRect(cx - 40, cy - 20, 80, 80); 
+  
+  // 画头
+  ctx.fillStyle = dressupColors[dressupParts.hair];
+  ctx.beginPath(); ctx.arc(cx, cy - 50, 40, 0, Math.PI * 2); ctx.fill();
+  
+  // 画眼睛
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(cx - 15, cy - 50, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 15, cy - 50, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(cx - 15, cy - 50, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 15, cy - 50, 3, 0, Math.PI * 2); ctx.fill();
+
+  // 画点击提示框
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+  ctx.strokeRect(cx - 45, cy - 95, 90, 90); // 头部
+  ctx.strokeRect(cx - 45, cy - 25, 90, 90); // 身体
+  ctx.strokeRect(cx - 35, cy + 55, 70, 90); // 腿部
+  ctx.setLineDash([]);
+}
+
+// 换装点击事件
+canvas2d.addEventListener('pointerdown', (e) => {
+  if (state !== 'playing' || config.gameType !== 'dressup') return;
+  const cx = canvas2d.width / 2;
+  const cy = canvas2d.height / 2 - 50;
+  const x = e.clientX, y = e.clientY;
+  
+  // 判断点击区域
+  if (y > cy - 95 && y < cy - 5) { // 头
+    dressupParts.hair = (dressupParts.hair + 1) % dressupColors.length;
+  } else if (y >= cy - 5 && y < cy + 65) { // 身体
+    dressupParts.clothes = (dressupParts.clothes + 1) % dressupColors.length;
+  } else if (y >= cy + 65 && y < cy + 145) { // 腿
+    dressupParts.pants = (dressupParts.pants + 1) % dressupColors.length;
+  }
+});
 
 
 // ==========================================
@@ -306,13 +355,12 @@ function animate(now) {
   try {
       if (config.gameType === 'tower') {
         update2D(dt);
+      } else if (config.gameType === 'dressup') {
+        updateDressup();
       } else {
         update3D(dt, now); composer.render();
       }
-  } catch(e) {
-      console.error("渲染异常:", e);
-      // 不中断循环，防止直接卡死
-  }
+  } catch(e) { console.error(e); }
 }
 
 function startGame() {
@@ -321,11 +369,13 @@ function startGame() {
   if (statusEl) statusEl.textContent = '进行中 · ' + config.title;
   document.getElementById('hud-title').textContent = config.title;
 
-  if (config.gameType === 'tower') {
+  if (config.gameType !== 'parkour') {
     canvas3d.style.display = 'none'; canvas2d.style.display = 'block';
     document.getElementById('parkour-controls').style.display = 'none';
     document.getElementById('parkour-jump').style.display = 'none';
-    build2DScene();
+    
+    if (config.gameType === 'tower') build2DScene();
+    if (config.gameType === 'dressup') buildDressupScene();
   } else {
     canvas3d.style.display = 'block'; canvas2d.style.display = 'none';
     document.getElementById('parkour-controls').style.display = 'flex';
@@ -389,19 +439,23 @@ async function generate() {
     
     config = data; 
     
-    // 🚨 绝对防御：不管AI怎么回答，只要用户说了塔防，强转塔防
+    // 🚨 绝对防御：关键词拦截
     if (text.includes('塔防') || text.includes('防御')) {
         config.gameType = 'tower';
-        config.theme = config.theme || 'default';
-        config.title = config.title || '塔防游戏';
         config.waves = config.waves || 5;
         config.enemyHp = config.enemyHp || 100;
         config.coins = config.coins || 200;
+    } else if (text.includes('换装') || text.includes('穿衣') || text.includes('衣服') || text.includes('打扮')) {
+        config.gameType = 'dressup';
+        config.hairColor = config.hairColor || '#ff0066';
+        config.clothesColor = config.clothesColor || '#00ffff';
+        config.pantsColor = config.pantsColor || '#ffcc00';
     } else {
         config.gameType = 'parkour';
         config.speed = config.speed || 14;
         config.targetScore = config.targetScore || 200;
     }
+    if(!config.title) config.title = '自定义游戏';
 
     saveHistory(text, config);
   } catch (err) {
