@@ -167,7 +167,7 @@ function build3DScene() {
 
 function update3D(dt, time) {
   if (state !== 'playing') return;
-  const speed = config.speed || 14; // 防呆：如果AI没给速度，默认14
+  const speed = config.speed || 14;
   if (keys.left) p3dX -= 10 * dt; if (keys.right) p3dX += 10 * dt;
   p3dX = Math.max(-5, Math.min(5, p3dX));
   if (!p3dGround) { p3dVY -= (config.gravity||26) * dt; p3dY += p3dVY * dt; if (p3dY <= 1) { p3dY = 1; p3dVY = 0; p3dGround = true; } }
@@ -292,8 +292,8 @@ function update2D(dt) {
       state = 'win'; game2dRunning = false; showOverlay('🎉 防守成功！', `你抵挡住了所有怪物！`); return;
   }
 
-  // HUD
-  document.getElementById('hud-main').innerHTML = `<span class="big">${baseHp2d} HP</span> | 金币 ${coins2d}`;
+  // HUD - 统一在这里更新，修复报错
+  document.getElementById('hud-main').innerHTML = `<span style="font-size:24px; font-weight:800; color:#4ea1ff;">${baseHp2d} HP</span> | 金币 ${coins2d}`;
   document.getElementById('status').textContent = `波次: ${wave2d}/${maxWaves} | 点击屏幕建塔(50金币)`;
 }
 
