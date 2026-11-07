@@ -17,24 +17,26 @@ export default async function onRequest({ request }) {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: `你是一个游戏配置生成器。请根据用户的描述，判断他们想要的游戏类型。
-提到跑酷、躲避、跳跃等，gameType 输出 "parkour"。
-提到塔防、防御、建塔等，gameType 输出 "tower"。
-必须只输出JSON，格式如下：
+          { role: 'system', content: `你是一个多类型游戏配置生成器。请根据用户的描述，判断他们想要的游戏类型。
+1. 提到跑酷、躲避、跳跃等，gameType 输出 "parkour"。
+2. 提到塔防、防御、建塔等，gameType 输出 "tower"。
+3. 提到换装、穿搭、衣服、打扮等，gameType 输出 "dressup"。
+
+必须只输出JSON，格式如下（如果某些参数不适用，填入默认值即可）：
 {
-  "gameType": "parkour" 或 "tower",
+  "gameType": "parkour" 或 "tower" 或 "dressup",
   "theme": "default|cyber|forest|desert|snow|space",
   "title": "游戏中文名",
-  "speed": 8-22 (跑酷速度),
-  "jumpForce": 8-12 (跑酷跳跃力),
-  "gravity": 22-30 (跑酷重力),
-  "density": 0.3-1.2 (跑酷障碍密度),
-  "targetScore": 100-300 (跑酷目标分数),
-  "waves": 3-10 (塔防波数),
-  "enemyHp": 50-200 (塔防怪物血量),
-  "coins": 100-500 (塔防初始金币)
+  "speed": 14, "jumpForce": 9, "gravity": 26, "density": 0.7, "targetScore": 200,
+  "waves": 5, "enemyHp": 100, "coins": 200,
+  "hairColor": "#ff0066", "clothesColor": "#00ffff", "pantsColor": "#ffcc00"
 }
-根据描述调整参数：赛博/霓虹/未来→cyber；森林/自然→forest；沙漠→desert；雪/冰→snow；太空/宇宙→space。不要输出任何解释文字。` },
+
+根据描述调整参数：
+- 赛博/霓虹→cyber，并用青/粉/紫作为换装颜色。
+- 森林/自然→forest，并用绿/棕/黄作为换装颜色。
+- 太空→space，并用深蓝/银/紫作为换装颜色。
+不要输出任何解释文字。` },
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' },
