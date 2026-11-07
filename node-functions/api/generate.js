@@ -18,13 +18,23 @@ export default async function onRequest({ request }) {
         model: 'deepseek-chat',
         messages: [
           { role: 'system', content: `你是一个游戏配置生成器。请根据用户的描述，判断他们想要的游戏类型。
-如果提到跑酷、躲避、跳跃等，gameType 输出 "parkour"。
-如果提到塔防、防御、建塔等，gameType 输出 "tower"。（目前塔防暂不支持，先回退到 parkour）
-如果提到换装、穿搭、衣服等，gameType 输出 "dressup"。（目前换装暂不支持，先回退到 parkour）
-
+提到跑酷、躲避、跳跃等，gameType 输出 "parkour"。
+提到塔防、防御、建塔等，gameType 输出 "tower"。
 必须只输出JSON，格式如下：
-{"gameType":"parkour","theme":"default|cyber|forest|desert|snow|space","title":"中文名","speed":8-22,"jumpForce":8-12,"gravity":22-30,"density":0.3-1.2,"targetScore":100-300}
-根据描述调整参数：赛博/霓虹/未来→cyber；森林/自然→forest；沙漠→desert；雪/冰→snow；太空/宇宙→space；快/难/密集→speed和density偏高；慢/轻松→偏低。不要输出任何解释文字。` },
+{
+  "gameType": "parkour" 或 "tower",
+  "theme": "default|cyber|forest|desert|snow|space",
+  "title": "游戏中文名",
+  "speed": 8-22 (跑酷速度),
+  "jumpForce": 8-12 (跑酷跳跃力),
+  "gravity": 22-30 (跑酷重力),
+  "density": 0.3-1.2 (跑酷障碍密度),
+  "targetScore": 100-300 (跑酷目标分数),
+  "waves": 3-10 (塔防波数),
+  "enemyHp": 50-200 (塔防怪物血量),
+  "coins": 100-500 (塔防初始金币)
+}
+根据描述调整参数：赛博/霓虹/未来→cyber；森林/自然→forest；沙漠→desert；雪/冰→snow；太空/宇宙→space。不要输出任何解释文字。` },
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' },
@@ -43,12 +53,6 @@ export default async function onRequest({ request }) {
     if (!content || content.trim() === '') return new Response(JSON.stringify({ error: 'AI返回空内容，请重试' }), { status: 502, headers: { 'Content-Type': 'application/json' } });
 
     const config = JSON.parse(content);
-    
-    // 目前只放行跑酷，其他的强行转成跑酷，避免报错
-    if (config.gameType !== 'parkour') {
-        config.gameType = 'parkour';
-    }
-
     return new Response(JSON.stringify(config), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
   } catch (e) {
