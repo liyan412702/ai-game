@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v4.1</title>
+<title>AI游戏造梦器 v4.2</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
@@ -13,22 +13,26 @@
   #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
   #ai-thoughts { position:fixed; top:calc(120px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; font-style:italic; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; line-height:1.4; z-index:5; }
+  
   #loading-mask { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; backdrop-filter:blur(5px); }
   #loading-mask.show { display:flex; }
   .spinner { width:50px; height:50px; border:4px solid rgba(255,255,255,0.1); border-top-color:#00ffcc; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
   @keyframes spin { 100% { transform:rotate(360deg); } }
+  
   #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; }
   .pad { display:flex; gap:12px; pointer-events:auto; }
   .btn-ctrl { width:64px; height:64px; border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-size:24px; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; }
   .btn-ctrl:active { background:rgba(78,161,255,.6); }
   #jump { width:76px; height:76px; font-size:18px; }
   #shoot { width:76px; height:76px; font-size:18px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
+  
   #panel { position:fixed; left:0; right:0; bottom:0; background:rgba(12,12,22,.95); border-top:1px solid rgba(255,255,255,.15); border-radius:18px 18px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom)); z-index:8; transition:transform .3s ease; }
   #panel.collapsed { transform:translateY(calc(100% - 46px)); }
   #panelToggle { height:34px; display:flex; align-items:center; justify-content:center; color:#889; font-size:13px; cursor:pointer; margin-bottom:8px; }
   #prompt { width:100%; height:48px; border-radius:12px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.05); color:#fff; padding:10px; }
   .row { display:flex; gap:8px; margin-top:10px; }
   #gen { flex:1; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
+  
   #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.7); z-index:20; padding:20px; backdrop-filter:blur(4px); }
   #overlay.show { display:flex; }
   #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px; text-align:center; color:#fff; width:100%; max-width:340px; position:relative; overflow:hidden; }
@@ -40,7 +44,7 @@
 <body>
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
 <canvas id="canvas2d"></canvas>
-<div id="version-badge">v4.1 大图铺底版</div>
+<div id="version-badge">v4.2 稳定生图版</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span></div>
@@ -69,7 +73,7 @@
 const SVG_PLAYER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/></svg>';
 const imgPlayer = new Image(); imgPlayer.src = SVG_PLAYER;
 
-let config = { gameType:'shooter', title:'游戏', enemyCount:15, enemyHp:30, enemySpeed:150, playerHp:100, design_thoughts:'', image_base64:null };
+let config = { gameType:'shooter', title:'游戏', enemyCount:15, enemyHp:30, enemySpeed:150, playerHp:100, design_thoughts:'', image_url:null };
 let state = 'ready';
 const canvas2d = document.getElementById('canvas2d'), ctx = canvas2d.getContext('2d');
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc');
@@ -79,12 +83,13 @@ const panel = document.getElementById('panel'), promptEl = document.getElementBy
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 window.addEventListener('resize', resize2D);
 
-// 全局背景图对象
+// 全局背景图对象 (跨域处理)
 let bgImageObj = new Image();
+bgImageObj.crossOrigin = "Anonymous"; // 允许跨域读取
 
 function showOverlay(title, desc) { 
     ovTitle.textContent = title; ovDesc.textContent = desc; 
-    if (config.image_base64) artBg.style.backgroundImage = `url(${config.image_base64})`;
+    if (config.image_url) artBg.style.backgroundImage = `url(${config.image_url})`;
     else artBg.style.backgroundImage = 'none';
     overlay.classList.add('show'); 
 }
@@ -106,8 +111,11 @@ function buildShooterScene() {
   camX = 0; shootEnemies = []; shootBullets = []; particles = [];
   spawnTimerShoot = 0; killedCount = 0; bossSpawned = false;
   platforms = [{ x: 0, y: initShootY, w: 1000, h: 200 },{ x: 1100, y: initShootY, w: 400, h: 200 },{ x: 1600, y: initShootY - 100, w: 300, h: 200 }];
-  // 如果拿到了图，就加载
-  if (config.image_base64) bgImageObj.src = config.image_base64;
+  
+  // 如果拿到了图，设置图片源
+  if (config.image_url) {
+      bgImageObj.src = config.image_url;
+  }
 }
 
 function spawnParticles(x, y, color, count) { for (let i = 0; i < count; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 400, vy: (Math.random() - 0.5) * 400, life: 1, color }); }
@@ -115,11 +123,15 @@ function spawnParticles(x, y, color, count) { for (let i = 0; i < count; i++) pa
 function updateShooter(dt) {
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
   
-  // 🌟 大图铺底作为游戏背景
-  if (config.image_base64 && bgImageObj.complete) {
-      ctx.globalAlpha = 0.4; // 调暗以便看清游戏元素
-      ctx.drawImage(bgImageObj, 0, 0, canvas2d.width, canvas2d.height);
-      ctx.globalAlpha = 1.0;
+  // 🌟 大图铺底作为游戏背景 (容错处理：即使图片跨域，也不会卡死)
+  if (config.image_url && bgImageObj.complete && bgImageObj.naturalWidth > 0) {
+      try {
+          ctx.globalAlpha = 0.5; // 调暗一点
+          ctx.drawImage(bgImageObj, 0, 0, canvas2d.width, canvas2d.height);
+          ctx.globalAlpha = 1.0;
+      } catch(e) {
+          // 忽略跨域渲染错误
+      }
   } else {
       ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
   }
@@ -164,7 +176,7 @@ function updateShooter(dt) {
 
   for (let i = shootEnemies.length - 1; i >= 0; i--) {
     let en = shootEnemies[i]; en.x += en.speed * dt * en.dir;
-    ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x, en.y, en.w, en.h); // 简单画个方块怪
+    ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x, en.y, en.w, en.h); 
     ctx.fillStyle = '#ff0000'; ctx.fillRect(en.x, en.y - 10, en.w * (en.hp / en.maxHp), 4);
 
     if (Math.abs(en.x - player.x) < 30 && Math.abs(en.y - player.y) < 50 && player.invincible <= 0) {
@@ -222,19 +234,29 @@ async function generate() {
   const mask = document.getElementById('loading-mask'), maskText = document.getElementById('loading-text');
   mask.classList.add('show'); maskText.textContent = '主策正在构思机制...';
   
+  const timer = setTimeout(() => { maskText.textContent = '画师正在绘制中，请稍候...'; }, 3000);
+
   try {
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
+    
+    // 容错处理：防止后端彻底崩溃导致非 JSON 返回
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("服务器开小差了，可能生图爆内存了。请重试一次！");
+    }
+    
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     config = data;
-    // 如果调试信息里报了画师错误，我们强行在标题上展示出来，让你看见！
-    if (config.design_thoughts.includes("智谱报错") || config.design_thoughts.includes("画师状态")) {
-        config.title = config.title + " (看左上角状态)";
-    }
-  } catch(e) { alert('生成失败: ' + e.message); }
-
-  mask.classList.remove('show');
-  startGame(); document.getElementById('gen').disabled = false;
+  } catch(e) { 
+      alert('生成失败: ' + e.message); 
+  } finally {
+      clearTimeout(timer);
+      mask.classList.remove('show');
+      document.getElementById('gen').disabled = false;
+  }
+  
+  if(config && config.title) startGame(); 
 }
 document.getElementById('gen').addEventListener('click', generate);
 resize2D(); requestAnimationFrame(animate);
