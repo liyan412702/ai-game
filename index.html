@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v4.8</title>
+<title>AI游戏造梦器 v5.0</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
   #canvas2d { position:relative; z-index:2; }
   #game-bg { position:fixed; inset:0; background-size:cover; background-position:center; z-index:1; opacity:0.4; display:none; }
-  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#00ffcc; background:rgba(0,255,204,0.15); border:1px solid #00ffcc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
+  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#ff00cc; background:rgba(255,0,204,0.15); border:1px solid #ff00cc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
   #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
   #ai-thoughts { position:fixed; top:calc(120px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; font-style:italic; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; line-height:1.4; z-index:5; }
@@ -46,7 +46,7 @@
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
 <div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
-<div id="version-badge">v4.8 极致抠图</div>
+<div id="version-badge">v5.0 绝对透明版</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span></div>
@@ -89,7 +89,7 @@ const panel = document.getElementById('panel'), promptEl = document.getElementBy
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 window.addEventListener('resize', resize2D);
 
-// 🌟 核心黑科技：亮度抠图法（大幅提升容错率）
+// 🌟 核心黑科技：四角基准法抠图（绝对去底）
 async function processImageRemoveBg(url) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -100,20 +100,37 @@ async function processImageRemoveBg(url) {
             c.height = img.height;
             const cx = c.getContext('2d');
             cx.drawImage(img, 0, 0);
-            const imgData = cx.getImageData(0, 0, c.width, c.height);
-            const data = imgData.data;
             
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                // 【算法升级】：计算亮度和，只要不是发光的颜色，只要是暗色背景（深蓝、深紫），统统变透明！
-                if ((r + g + b) < 180) { 
-                    data[i + 3] = 0; 
+            try {
+                const imgData = cx.getImageData(0, 0, c.width, c.height);
+                const data = imgData.data;
+                
+                // 读取左上角像素作为背景色的基准色
+                const baseR = data[0];
+                const baseG = data[1];
+                const baseB = data[2];
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    
+                    // 计算当前像素与背景色的色差
+                    const diff = Math.abs(r - baseR) + Math.abs(g - baseG) + Math.abs(b - baseB);
+                    
+                    // 如果色差很小（颜色相近），直接变透明！
+                    // 同时提高亮度阈值作为兜底
+                    if (diff < 80 || (r + g + b) < 150) { 
+                        data[i + 3] = 0; 
+                    }
                 }
+                cx.putImageData(imgData, 0, 0);
+                resolve(c.toDataURL()); 
+            } catch (e) {
+                // 如果跨域拦截了像素读取，把错误提示打在左上角
+                if(statusEl) statusEl.textContent = '跨域读取失败: ' + e.message;
+                resolve(url); // 返回原图保底
             }
-            cx.putImageData(imgData, 0, 0);
-            resolve(c.toDataURL()); 
         };
         img.onerror = () => resolve(url); 
         img.src = url;
