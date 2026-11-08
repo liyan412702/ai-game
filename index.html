@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v3.3</title>
+<title>AI游戏造梦器 v4.0</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
@@ -13,17 +13,25 @@
   #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
   #ai-thoughts { position:fixed; top:calc(120px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; font-style:italic; text-shadow:0 1px 2px #000; pointer-events:none; z-index:5; opacity:0.9; background:rgba(0,0,0,0.7); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; line-height:1.4; }
+  
+  /* 加载遮罩 */
+  #loading-mask { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; backdrop-filter:blur(5px); }
+  #loading-mask.show { display:flex; }
+  .spinner { width:50px; height:50px; border:4px solid rgba(255,255,255,0.1); border-top-color:#00ffcc; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
+  @keyframes spin { 100% { transform:rotate(360deg); } }
+
   #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px;); }
   #history-panel { position:fixed; top:0; right:-100%; width:80%; max-width:300px; height:100%; background:rgba(15,15,25,0.95); z-index:20; transition:right 0.3s ease; padding:20px; overflow-y:auto; border-left:1px solid rgba(255,255,255,0.1); }
   #history-panel.show { right:0; }
   .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:10px; color:#ccc; font-size:14px; }
+  
   #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; }
   .pad { display:flex; gap:12px; pointer-events:auto; }
   .btn-ctrl { width:64px; height:64px; border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-size:24px; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; transition:0.1s; }
   .btn-ctrl:active, .btn-ctrl.on { background:rgba(78,161,255,.6); border-color:#4ea1ff; transform:scale(0.92); box-shadow:0 0 15px #4ea1ff; }
   #jump { width:76px; height:76px; font-size:18px; }
   #shoot { width:76px; height:76px; font-size:18px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
-  #shoot:active { background:rgba(255,0,102,0.6); box-shadow:0 0 15px #ff0066; }
+  
   #panel { position:fixed; left:0; right:0; bottom:0; background:rgba(12,12,22,.95); border-top:1px solid rgba(255,255,255,.15); border-radius:18px 18px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom)); z-index:8; transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter:blur(12px); }
   #panel.collapsed { transform:translateY(calc(100% - 46px)); }
   #panelToggle { height:34px; display:flex; align-items:center; justify-content:center; color:#889; font-size:13px; cursor:pointer; margin-bottom:8px; }
@@ -32,20 +40,24 @@
   .row { display:flex; gap:8px; margin-top:10px; align-items:center; }
   #gen { flex:1; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; box-shadow:0 4px 15px rgba(78,161,255,.4); cursor:pointer; }
   #gen:disabled { opacity:.6; }
-  #examples { display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:2px; }
-  .example { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#cfd8ff; font-size:13px; white-space:nowrap; cursor:pointer; }
+  
   #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.7); z-index:20; padding:20px; backdrop-filter:blur(4px); }
   #overlay.show { display:flex; }
-  #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px 24px; text-align:center; color:#fff; width:100%; max-width:340px; }
+  #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px 24px; text-align:center; color:#fff; width:100%; max-width:340px; position:relative; overflow:hidden; }
+  /* 结算界面的美术背景 */
+  #art-bg { position:absolute; inset:0; background-size:cover; background-position:center; opacity:0.3; z-index:0; }
+  #overlay .card > * { position:relative; z-index:1; }
   #overlay h2 { font-size:24px; margin-bottom:10px; }
   #overlay p { color:#aab; margin-bottom:20px; font-size:14px; }
   #overlay button { width:100%; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
 </style>
 </head>
 <body>
+<div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
+
 <canvas id="canvas3d"></canvas>
 <canvas id="canvas2d" style="display:none;"></canvas>
-<div id="version-badge">v3.3 机制平衡版</div>
+<div id="version-badge">v4.0 美术觉醒版</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
@@ -64,16 +76,18 @@
 </div>
 <div id="panel">
   <div id="panelToggle"></div>
-  <textarea id="prompt" placeholder="输入你想玩的（如：魂斗罗 / 塔防 / 换装）"></textarea>
+  <textarea id="prompt" placeholder="输入你想玩的（如：魂斗罗 / 赛博朋克）"></textarea>
   <div class="row"><button id="gen">✨ 生成游戏</button></div>
-  <div id="examples">
-    <button class="example" data-p="魂斗罗">魂斗罗·射击</button>
-    <button class="example" data-p="硬核空战魂斗罗">硬核空战魂斗罗</button>
-    <button class="example" data-p="地狱级塔防">2D·塔防</button>
-    <button class="example" data-p="二次元换装">二次元·换装</button>
+</div>
+<div id="overlay">
+  <div class="card">
+    <div id="art-bg"></div>
+    <h2 id="ovTitle">游戏结束</h2>
+    <p id="ovDesc"></p>
+    <button id="ovBtn">再来一次</button>
   </div>
 </div>
-<div id="overlay"><div class="card"><h2 id="ovTitle">游戏结束</h2><p id="ovDesc"></p><button id="ovBtn">再来一次</button></div></div>
+
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
 </script>
@@ -84,34 +98,39 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 const SVG_ASSETS = {
-    player: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/><rect x="15" y="15" width="5" height="5" fill="%23fff"/><rect x="30" y="15" width="5" height="5" fill="%23fff"/></svg>',
-    enemyGround: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,5 35,20 20,35 5,20" fill="%23ff0066"/><circle cx="15" cy="15" r="3" fill="%23fff"/><circle cx="25" cy="15" r="3" fill="%23fff"/><rect x="10" y="35" width="5" height="15" fill="%23ff0066"/><rect x="25" y="35" width="5" height="15" fill="%23ff0066"/></svg>',
-    enemyFly: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><ellipse cx="20" cy="20" rx="15" ry="10" fill="%23aa00ff"/><circle cx="15" cy="20" r="3" fill="%23fff"/><circle cx="25" cy="20" r="3" fill="%23fff"/><path d="M5,20 Q20,5 35,20 Q20,35 5,20" fill="%23ff00cc" opacity="0.5"/></svg>',
-    boss: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><polygon points="30,0 60,30 30,60 0,30" fill="%23aa00ff"/><circle cx="20" cy="20" r="8" fill="%23ff0000"/><circle cx="40" cy="20" r="8" fill="%23ff0000"/><rect x="15" y="40" width="30" height="10" fill="%23ff0000"/></svg>',
-    ship: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60"><polygon points="20,0 40,40 20,30 0,40" fill="%2300ffff"/><rect x="15" y="40" width="10" height="20" fill="%23ff0066" opacity="0.8"/></svg>',
-    tower: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="%23333333" stroke="%2300ffff" stroke-width="3"/><rect x="18" y="0" width="4" height="20" fill="%2300ffff"/><circle cx="20" cy="20" r="5" fill="%2300ffff"/></svg>',
-    chest: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><rect x="5" y="15" width="20" height="15" fill="%23ffaa00"/><rect x="5" y="10" width="20" height="8" fill="%23ffcc00" rx="4"/><circle cx="15" cy="20" r="3" fill="%23000"/></svg>'
+    player: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/></svg>',
+    enemyGround: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,5 35,20 20,35 5,20" fill="%23ff0066"/></svg>',
+    enemyFly: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><ellipse cx="20" cy="20" rx="15" ry="10" fill="%23aa00ff"/></svg>',
+    boss: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><polygon points="30,0 60,30 30,60 0,30" fill="%23aa00ff"/></svg>',
+    ship: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60"><polygon points="20,0 40,40 20,30 0,40" fill="%2300ffff"/></svg>'
 };
 const imgs = {};
 for (let key in SVG_ASSETS) { imgs[key] = new Image(); imgs[key].src = SVG_ASSETS[key]; }
 
-let config = { gameType:'shooter', theme:'cyber', title:'游戏', speed:14, density:0.7, targetScore:200, waves:5, enemyHp:50, coins:200, hairColor:'#ff0066', clothesColor:'#00ffff', pantsColor:'#ffcc00', enemyCount:15, enemySpeed:120, playerHp:100, design_thoughts:'' };
-
+let config = { gameType:'shooter', title:'游戏', enemyCount:15, enemyHp:30, enemySpeed:150, playerHp:100, design_thoughts:'', image_base64:null };
 let state = 'ready';
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
 const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main'), aiThoughtsEl = document.getElementById('ai-thoughts');
-function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
+const artBg = document.getElementById('art-bg');
+
+function showOverlay(title, desc) { 
+    ovTitle.textContent = title; ovDesc.textContent = desc; 
+    // 将AI画的图作为结算背景
+    if (config.image_base64) artBg.style.backgroundImage = `url(${config.image_base64})`;
+    else artBg.style.backgroundImage = 'none';
+    overlay.classList.add('show'); 
+}
 function hideOverlay() { overlay.classList.remove('show'); }
 ovBtn.addEventListener('click', () => { hideOverlay(); startGame(); });
 
 const panel = document.getElementById('panel'), promptEl = document.getElementById('prompt');
 document.getElementById('panelToggle').addEventListener('click', () => {
     const isCollapsed = panel.classList.contains('collapsed');
-    if (isCollapsed) { if (state === 'playing') { state = 'paused'; statusEl.textContent = '游戏已暂停（输入中）'; } }
-    else { if (state === 'paused') { state = 'playing'; statusEl.textContent = '进行中 · ' + config.title; } }
+    if (isCollapsed) { if (state === 'playing') { state = 'paused'; statusEl.textContent = '已暂停'; } }
+    else { if (state === 'paused') { state = 'playing'; statusEl.textContent = '进行中'; } }
     panel.classList.toggle('collapsed');
 });
-promptEl.addEventListener('focus', () => { if (state === 'playing') { state = 'paused'; statusEl.textContent = '游戏已暂停（输入中）'; } });
+promptEl.addEventListener('focus', () => { if (state === 'playing') { state = 'paused'; statusEl.textContent = '已暂停'; } });
 
 const canvas3d = document.getElementById('canvas3d'), canvas2d = document.getElementById('canvas2d'), ctx = canvas2d.getContext('2d');
 const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true }); renderer.setSize(innerWidth, innerHeight);
@@ -119,18 +138,17 @@ const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(65, 
 const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera)); composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.5, 0.4, 0.85));
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 
-// 其他引擎省略，聚焦核心
 let keys = {left:false, right:false};
-let player = { x: 100, y: 0, vx: 0, vy: 0, w: 40, h: 60, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false, weaponLevel: 1 };
-let camX = 0, shootEnemies = [], shootBullets = [], particles = [], chests = [], platforms = [], bossSpawned = false, killedCount = 0, spawnTimerShoot = 0;
+let player = { x: 100, y: 0, vx: 0, vy: 0, w: 40, h: 60, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
+let camX = 0, shootEnemies = [], shootBullets = [], particles = [], platforms = [], bossSpawned = false, killedCount = 0, spawnTimerShoot = 0;
 let initShootY = 0;
 
 function buildShooterScene() {
   resize2D(); initShootY = canvas2d.height - 120;
-  player = { x: 100, y: initShootY - 60, vx: 0, vy: 0, w: 30, h: 50, hp: config.playerHp || 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false, weaponLevel: 1 };
-  camX = 0; shootEnemies = []; shootBullets = []; particles = []; chests = [];
+  player = { x: 100, y: initShootY - 60, vx: 0, vy: 0, w: 30, h: 50, hp: config.playerHp || 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
+  camX = 0; shootEnemies = []; shootBullets = []; particles = [];
   spawnTimerShoot = 0; killedCount = 0; bossSpawned = false;
-  platforms = [{ x: 0, y: initShootY, w: 1000, h: 200 },{ x: 1100, y: initShootY, w: 400, h: 200 },{ x: 1600, y: initShootY - 100, w: 300, h: 200 },{ x: 2000, y: initShootY, w: 600, h: 200 },{ x: 2700, y: initShootY - 50, w: 300, h: 200 }];
+  platforms = [{ x: 0, y: initShootY, w: 1000, h: 200 },{ x: 1100, y: initShootY, w: 400, h: 200 },{ x: 1600, y: initShootY - 100, w: 300, h: 200 }];
 }
 
 function spawnParticles(x, y, color, count) { for (let i = 0; i < count; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 400, vy: (Math.random() - 0.5) * 400, life: 1, color }); }
@@ -149,69 +167,45 @@ function updateShooter(dt) {
   ctx.save(); ctx.translate(-camX, 0);
   for (let p of platforms) { ctx.fillStyle = '#1a1a2e'; ctx.fillRect(p.x, p.y, p.w, p.h); ctx.fillStyle = '#00ffff'; ctx.fillRect(p.x, p.y, p.w, 2); }
   
-  // 玩家绘制
+  // 如果AI画了图，玩家就用AI画的图当主角，否则用默认SVG
   if (player.invincible <= 0 || Math.floor(Date.now() / 100) % 2 === 0) {
     ctx.save(); if (player.dir === -1) { ctx.translate(player.x, player.y); ctx.scale(-1, 1); ctx.drawImage(imgs.player, -player.w/2, 0, player.w, player.h); } else { ctx.drawImage(imgs.player, player.x - player.w/2, player.y, player.w, player.h); } ctx.restore();
   }
 
-   // 射击：智能伤害缩放（如果AI给的怪血量高，玩家伤害自动提升）
   if (player.isShooting && player.shootCd <= 0) {
     const gunX = player.x + player.dir * 20, gunY = player.y + 20;
-    // 根据AI分配的敌人血量，动态计算基础伤害，保证最多3枪打死一个小怪！
-    let dmg = Math.max(15, Math.ceil((config.enemyHp || 30) / 3));
-    if (player.weaponLevel === 2) dmg = dmg * 1.5;
-    
-    if (player.weaponLevel === 1) shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 800, vy: 0, dmg });
-    else if (player.weaponLevel >= 2) {
-      shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 800, vy: 0, dmg });
-      shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 700, vy: -200, dmg });
-      shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 700, vy: 200, dmg });
-    }
-    player.shootCd = 0.12; // 射速加快
+    let dmg = Math.max(15, Math.ceil((config.enemyHp || 30) / 3)); // 伤害自适应
+    shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 800, vy: 0, dmg });
+    player.shootCd = 0.15;
   }
   if (player.shootCd > 0) player.shootCd -= dt;
 
   for (let i = shootBullets.length - 1; i >= 0; i--) {
     let b = shootBullets[i]; b.x += b.vx * dt; b.y += b.vy * dt;
     ctx.fillStyle = '#ffff00'; ctx.fillRect(b.x, b.y, 12, 4);
-    if (b.x > camX + canvas2d.width || b.x < camX - 100 || b.y > canvas2d.height) shootBullets.splice(i, 1);
+    if (b.x > camX + canvas2d.width || b.x < camX - 100) shootBullets.splice(i, 1);
   }
 
-  // 动态刷怪机制：地空混编
   spawnTimerShoot -= dt;
   const targetEnemies = config.enemyCount || 15;
   if (spawnTimerShoot <= 0 && !bossSpawned) {
     let spawnX = camX + canvas2d.width + 100;
-    let spawnRate = Math.max(0.3, 2.0 - targetEnemies * 0.03); 
     if (spawnX < 2800) {
-      let isFlying = Math.random() > 0.5; // 50%概率出飞怪
-      shootEnemies.push({ 
-          x: spawnX, 
-          y: isFlying ? initShootY - 150 - Math.random()*100 : initShootY - 40, 
-          w: 40, h: 40, 
-          hp: config.enemyHp || 50, maxHp: config.enemyHp || 50, 
-          speed: (config.enemySpeed || 150) * (isFlying ? 0.8 : 1), 
-          type: isFlying ? 'flying' : 'ground', 
-          dir: -1 
-      });
+      let isFlying = Math.random() > 0.5;
+      shootEnemies.push({ x: spawnX, y: isFlying ? initShootY - 150 - Math.random()*100 : initShootY - 40, w: 40, h: 40, hp: config.enemyHp || 30, maxHp: config.enemyHp || 30, speed: (config.enemySpeed || 150) * (isFlying ? 0.8 : 1), type: isFlying ? 'flying' : 'ground', dir: -1 });
     }
-    spawnTimerShoot = spawnRate;
+    spawnTimerShoot = Math.max(0.4, 2.0 - targetEnemies * 0.03);
   }
 
-  // 怪物更新与碰撞
   for (let i = shootEnemies.length - 1; i >= 0; i--) {
     let en = shootEnemies[i]; en.x += en.speed * dt * en.dir;
     ctx.drawImage(en.type === 'flying' ? imgs.enemyFly : (en.type === 'boss' ? imgs.boss : imgs.enemyGround), en.x, en.y, en.w, en.h);
-    
-    // 血条
     ctx.fillStyle = '#ff0000'; ctx.fillRect(en.x, en.y - 10, en.w * (en.hp / en.maxHp), 4);
 
-    // 撞击玩家
     if (Math.abs(en.x - player.x) < 30 && Math.abs(en.y - player.y) < 50 && player.invincible <= 0) {
       player.hp -= 20; player.invincible = 1.5; spawnParticles(player.x, player.y, '#ff0000', 20);
       if (player.hp <= 0) { state = 'over'; showOverlay('💀 阵亡了！', `击杀数: ${killedCount}`); return; }
     }
-    // 子弹击中怪物
     for (let j = shootBullets.length - 1; j >= 0; j--) {
       let b = shootBullets[j];
       if (b.x > en.x && b.x < en.x + en.w && b.y > en.y && b.y < en.y + en.h) {
@@ -222,14 +216,12 @@ function updateShooter(dt) {
     if (en.x < camX - 100) shootEnemies.splice(i, 1);
   }
 
-  // BOSS战
   if (killedCount >= targetEnemies && !bossSpawned) {
     bossSpawned = true;
     let bossHp = 500 + targetEnemies * 10; 
     shootEnemies.push({ x: camX + canvas2d.width - 150, y: initShootY - 150, w: 120, h: 120, hp: bossHp, maxHp: bossHp, speed: 60, type: 'boss', dir: -1 });
-    statusEl.textContent = '⚠️ 警告：强力BOSS出现！';
   }
-  if (bossSpawned && shootEnemies.length === 0) { state = 'win'; showOverlay('🎉 消灭了BOSS！', `你拯救了世界！`); return; }
+  if (bossSpawned && shootEnemies.length === 0) { state = 'win'; showOverlay('🎉 消灭了BOSS！', `你完成了《${config.title}》`); return; }
 
   ctx.restore();
   hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${player.hp} HP</span> | 击杀 ${killedCount}/${targetEnemies}`;
@@ -240,22 +232,15 @@ let lastTime = performance.now();
 function animate(now) {
   requestAnimationFrame(animate); const dt = Math.min((now-lastTime)/1000, 0.05); lastTime = now;
   if (state === 'paused') return; if (state !== 'playing') return;
-  try {
-    if (config.gameType === 'tower') { ctx.clearRect(0,0,canvas2d.width,canvas2d.height); ctx.strokeStyle='#333'; ctx.lineWidth=40; ctx.beginPath(); ctx.moveTo(innerWidth,innerHeight/2); ctx.lineTo(0,innerHeight/2); ctx.stroke(); }
-    else if (config.gameType === 'dressup') { ctx.clearRect(0,0,canvas2d.width,canvas2d.height); ctx.fillStyle='#00ffff'; ctx.fillRect(innerWidth/2-20,innerHeight/2,40,80); }
-    else if (config.gameType === 'shooter') updateShooter(dt);
-    else { composer.render(); } // 跑酷简单处理
-  } catch(e) {}
+  if (config.gameType === 'shooter') updateShooter(dt);
 }
 
 function startGame() {
   hideOverlay(); panel.classList.add('collapsed'); state='playing';
   statusEl.textContent = '进行中 · ' + config.title; document.getElementById('hud-title').textContent = config.title;
-  if(config.design_thoughts){ aiThoughtsEl.textContent = "💡 策划思路: " + config.design_thoughts; aiThoughtsEl.style.display = 'block'; setTimeout(()=>aiThoughtsEl.style.display='none', 6000); }
-  document.getElementById('move-controls').style.display = 'none'; document.getElementById('action-controls').style.display = 'none';
-  canvas3d.style.display = 'none'; canvas2d.style.display = 'none';
-  if(config.gameType === 'parkour') { canvas3d.style.display='block'; document.getElementById('move-controls').style.display='flex'; document.getElementById('action-controls').style.display='flex'; }
-  else { canvas2d.style.display='block'; resize2D(); if(config.gameType==='shooter'){ document.getElementById('move-controls').style.display='flex'; document.getElementById('action-controls').style.display='flex'; document.getElementById('shoot').style.display='flex'; buildShooterScene(); } }
+  if(config.design_thoughts){ aiThoughtsEl.textContent = "💡 主策推演: " + config.design_thoughts; aiThoughtsEl.style.display = 'block'; setTimeout(()=>aiThoughtsEl.style.display='none', 8000); }
+  document.getElementById('move-controls').style.display = 'flex'; document.getElementById('action-controls').style.display = 'flex'; document.getElementById('shoot').style.display = 'flex';
+  canvas3d.style.display = 'none'; canvas2d.style.display = 'block'; resize2D(); buildShooterScene(); 
 }
 
 function bindCtrl(id, sFn, eFn) { const el = document.getElementById(id); el.addEventListener('touchstart',(e)=>{e.preventDefault();sFn();}); el.addEventListener('mousedown',sFn); el.addEventListener('touchend',eFn); el.addEventListener('mouseup',eFn); }
@@ -268,13 +253,25 @@ document.addEventListener('keyup', (e)=>{ if(e.key==='ArrowLeft'||e.key==='a')ke
 
 async function generate() {
   const text = promptEl.value.trim() || '跑酷';
-  document.getElementById('gen').disabled = true; document.getElementById('gen').textContent = 'AI推演平衡中…';
+  document.getElementById('gen').disabled = true; 
+  
+  // 显示 Loading 遮罩
+  const mask = document.getElementById('loading-mask');
+  const maskText = document.getElementById('loading-text');
+  mask.classList.add('show'); maskText.textContent = '主策正在构思机制...';
+  
+  const timer1 = setTimeout(() => { maskText.textContent = 'AI 画师正在绘制美术资产...'; }, 3000);
+  const timer2 = setTimeout(() => { maskText.textContent = '即将完成，马上就好...'; }, 7000);
+
   try {
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
     config = await res.json();
-    if (text.includes('塔防')) config.gameType='tower'; else if (text.includes('换装')) config.gameType='dressup'; else if (text.includes('射击')||text.includes('魂斗罗')) config.gameType='shooter'; else config.gameType='parkour';
+    config.gameType = 'shooter'; // 为了测试生图，我们暂时锁定为射击游戏
   } catch(e) { alert('生成失败'); }
-  startGame(); document.getElementById('gen').disabled = false; document.getElementById('gen').textContent = '✨ 生成游戏';
+
+  clearTimeout(timer1); clearTimeout(timer2);
+  mask.classList.remove('show');
+  startGame(); document.getElementById('gen').disabled = false;
 }
 document.getElementById('gen').addEventListener('click', generate);
 resize2D(); requestAnimationFrame(animate);
