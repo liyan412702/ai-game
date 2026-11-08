@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v4.2</title>
+<title>AI游戏造梦器 v4.3</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
@@ -44,7 +44,7 @@
 <body>
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
 <canvas id="canvas2d"></canvas>
-<div id="version-badge">v4.2 稳定生图版</div>
+<div id="version-badge">v4.3 前端直连版</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span></div>
@@ -70,6 +70,9 @@
 </div>
 
 <script type="module">
+// ⚠️⚠️⚠️ 请在这里填入你的智谱 API Key ⚠️⚠️⚠️
+const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
+
 const SVG_PLAYER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/></svg>';
 const imgPlayer = new Image(); imgPlayer.src = SVG_PLAYER;
 
@@ -83,9 +86,8 @@ const panel = document.getElementById('panel'), promptEl = document.getElementBy
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 window.addEventListener('resize', resize2D);
 
-// 全局背景图对象 (跨域处理)
 let bgImageObj = new Image();
-bgImageObj.crossOrigin = "Anonymous"; // 允许跨域读取
+bgImageObj.crossOrigin = "Anonymous";
 
 function showOverlay(title, desc) { 
     ovTitle.textContent = title; ovDesc.textContent = desc; 
@@ -111,11 +113,7 @@ function buildShooterScene() {
   camX = 0; shootEnemies = []; shootBullets = []; particles = [];
   spawnTimerShoot = 0; killedCount = 0; bossSpawned = false;
   platforms = [{ x: 0, y: initShootY, w: 1000, h: 200 },{ x: 1100, y: initShootY, w: 400, h: 200 },{ x: 1600, y: initShootY - 100, w: 300, h: 200 }];
-  
-  // 如果拿到了图，设置图片源
-  if (config.image_url) {
-      bgImageObj.src = config.image_url;
-  }
+  if (config.image_url) bgImageObj.src = config.image_url;
 }
 
 function spawnParticles(x, y, color, count) { for (let i = 0; i < count; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 400, vy: (Math.random() - 0.5) * 400, life: 1, color }); }
@@ -123,15 +121,8 @@ function spawnParticles(x, y, color, count) { for (let i = 0; i < count; i++) pa
 function updateShooter(dt) {
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
   
-  // 🌟 大图铺底作为游戏背景 (容错处理：即使图片跨域，也不会卡死)
   if (config.image_url && bgImageObj.complete && bgImageObj.naturalWidth > 0) {
-      try {
-          ctx.globalAlpha = 0.5; // 调暗一点
-          ctx.drawImage(bgImageObj, 0, 0, canvas2d.width, canvas2d.height);
-          ctx.globalAlpha = 1.0;
-      } catch(e) {
-          // 忽略跨域渲染错误
-      }
+      try { ctx.globalAlpha = 0.5; ctx.drawImage(bgImageObj, 0, 0, canvas2d.width, canvas2d.height); ctx.globalAlpha = 1.0; } catch(e) {}
   } else {
       ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
   }
@@ -234,24 +225,38 @@ async function generate() {
   const mask = document.getElementById('loading-mask'), maskText = document.getElementById('loading-text');
   mask.classList.add('show'); maskText.textContent = '主策正在构思机制...';
   
-  const timer = setTimeout(() => { maskText.textContent = '画师正在绘制中，请稍候...'; }, 3000);
-
   try {
+    // 1. 问腾讯云后端要文字和提示词
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
-    
-    // 容错处理：防止后端彻底崩溃导致非 JSON 返回
-    const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("服务器开小差了，可能生图爆内存了。请重试一次！");
-    }
-    
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     config = data;
+    
+    // 2. 前端直接拿着提示词去问智谱画师
+    maskText.textContent = '画师正在绘制中（大概需要8秒）...';
+    const zhipuRes = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
+      method: 'POST',
+      headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${ZHIPU_KEY}` // 这里用的是你填在前端的 Key
+      },
+      body: JSON.stringify({
+        model: 'cogview-3-flash',
+        prompt: config.image_prompt || 'epic game art',
+        size: '1024x1024'
+      })
+    });
+    
+    const zhipuData = await zhipuRes.json();
+    if (zhipuData.data && zhipuData.data[0] && zhipuData.data[0].url) {
+        config.image_url = zhipuData.data[0].url;
+    } else {
+        config.design_thoughts += " | 画师报错: 没拿到图";
+    }
+
   } catch(e) { 
       alert('生成失败: ' + e.message); 
   } finally {
-      clearTimeout(timer);
       mask.classList.remove('show');
       document.getElementById('gen').disabled = false;
   }
