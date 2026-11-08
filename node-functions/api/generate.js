@@ -2,9 +2,10 @@ export default async function onRequest({ request }) {
   if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
   try {
     const body = await request.json();
-    const prompt = body.prompt;
+    const prompt = body.prompt || '跑酷';
 
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    // 1. 呼叫 DeepSeek 生成游戏配置与美术提示词
+    const dsResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}` },
       body: JSON.stringify({
@@ -12,18 +13,13 @@ export default async function onRequest({ request }) {
         messages: [
           { 
             role: 'system', 
-            content: `你是一位极具主观能动性的顶级游戏主策。你不需要别人教你规则，你天生懂得什么是“好玩”。
-现在，请你在内部完成一次“自我博弈与推演”，然后再输出配置。
-
-【自我博弈四步法】（必须严格执行，并浓缩在 design_thoughts 里）：
-1. 定基调：用户的需求（如魂斗罗）核心体验是什么？
-2. 玩家模拟：如果按照常规数值（比如100血的怪），玩家在密集攻击下是否会感到“刮痧”或“挫败”？
-3. 自我修正：发现问题后，你会怎么调？（比如：为了保持爽快感，必须降低单体血量，同时增加怪物数量来维持压力；或者加入空战机制）。
-4. 最终定案：得出平衡后的数值。
-
+            content: `你是一位懂“动态平衡”的顶级游戏主策，同时具备极高的美术审美。请完成内部博弈，并输出配置。
+【自我博弈】：先模拟玩家体验，再定数值。
+【美术提示词】：根据用户需求，写一句极具视觉冲击力的英文绘画提示词（如：cyberpunk soldier, neon lights, epic, high quality, game cover art），填入 image_prompt 字段。绝对不要包含文字！必须用英文！
 输出严格的 JSON（禁止 markdown 代码块）：
 {
-  "design_thoughts": "记录你内部博弈的过程（例如：我起初想设100血，但我模拟后发现玩家打不死会感到无聊，因此我削减血量至25，并加入飞行怪增加压迫感）。",
+  "design_thoughts": "内部博弈过程(50字内)",
+  "image_prompt": "英文绘画提示词",
   "gameType": "shooter",
   "title": "游戏名",
   "enemyCount": 20, "enemyHp": 25, "enemySpeed": 150, "playerHp": 100,
@@ -39,9 +35,41 @@ export default async function onRequest({ request }) {
       })
     });
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    return new Response(content, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const dsData = await dsResponse.json();
+    const config = JSON.parse(dsData.choices?.[0]?.message?.content);
+
+    // 2. 呼叫智谱 CogView-3-Flash 生成图片
+    let image_base64 = null;
+    try {
+      const zhipuResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.ZHIPU_API_KEY}` },
+        body: JSON.stringify({
+          model: 'cogview-3-flash',
+          prompt: config.image_prompt || 'epic game cover art, neon lights',
+          size: '1024x1024'
+        })
+      });
+      
+      const zhipuData = await zhipuResponse.json();
+      const imageUrl = zhipuData.data?.[0]?.url;
+      
+      // 3. 将图片 URL 下载并转为 Base64，彻底解决前端跨域问题
+      if (imageUrl) {
+        const imgRes = await fetch(imageUrl);
+        const buffer = await imgRes.arrayBuffer();
+        // 在 Workers 环境下用 Base64 编码
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        image_base64 = `data:image/png;base64,${base64}`;
+      }
+    } catch (err) {
+      console.error('生图失败，但不影响游戏运行', err);
+    }
+
+    // 将图片和配置一起返回给前端
+    config.image_base64 = image_base64;
+    return new Response(JSON.stringify(config), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
