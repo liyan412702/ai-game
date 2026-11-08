@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v4.7</title>
+<title>AI游戏造梦器 v4.8</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
@@ -46,7 +46,7 @@
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
 <div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
-<div id="version-badge">v4.7 像素级抠图</div>
+<div id="version-badge">v4.8 极致抠图</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span></div>
@@ -89,11 +89,11 @@ const panel = document.getElementById('panel'), promptEl = document.getElementBy
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 window.addEventListener('resize', resize2D);
 
-// 🌟 核心黑科技：像素级自动抠图去黑底
+// 🌟 核心黑科技：亮度抠图法（大幅提升容错率）
 async function processImageRemoveBg(url) {
     return new Promise((resolve) => {
         const img = new Image();
-        img.crossOrigin = "Anonymous"; // 确保跨域读取
+        img.crossOrigin = "Anonymous";
         img.onload = () => {
             const c = document.createElement('canvas');
             c.width = img.width;
@@ -103,20 +103,19 @@ async function processImageRemoveBg(url) {
             const imgData = cx.getImageData(0, 0, c.width, c.height);
             const data = imgData.data;
             
-            // 遍历所有像素，把深黑色（含一定容差）全部变透明
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
                 const g = data[i + 1];
                 const b = data[i + 2];
-                // 如果 RGB 都很低，说明是黑底，直接透明
-                if (r < 40 && g < 40 && b < 40) { 
+                // 【算法升级】：计算亮度和，只要不是发光的颜色，只要是暗色背景（深蓝、深紫），统统变透明！
+                if ((r + g + b) < 180) { 
                     data[i + 3] = 0; 
                 }
             }
             cx.putImageData(imgData, 0, 0);
-            resolve(c.toDataURL()); // 返回处理好的透明 PNG
+            resolve(c.toDataURL()); 
         };
-        img.onerror = () => resolve(url); // 如果报错，就返回原图
+        img.onerror = () => resolve(url); 
         img.src = url;
     });
 }
@@ -167,21 +166,15 @@ function updateShooter(dt) {
 
   ctx.save(); ctx.translate(-camX, 0);
   
-  // 绘制更酷的赛博地形
   for (let p of platforms) {
-      ctx.fillStyle = 'rgba(10, 20, 30, 0.8)'; // 半透明深蓝底
+      ctx.fillStyle = 'rgba(10, 20, 30, 0.8)'; 
       ctx.fillRect(p.x, p.y, p.w, p.h);
-      // 发光边缘
       ctx.fillStyle = '#00ffcc'; 
       ctx.fillRect(p.x, p.y, p.w, 4);
-      // 侧面纹理
       ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
-      for(let i=p.x; i<p.x+p.w; i+=30) {
-          ctx.fillRect(i, p.y, 2, p.h);
-      }
+      for(let i=p.x; i<p.x+p.w; i+=30) ctx.fillRect(i, p.y, 2, p.h);
   }
   
-  // 绘制主角 (已去底，无需滤镜)
   if (player.invincible <= 0 || Math.floor(Date.now() / 100) % 2 === 0) {
     ctx.save(); 
     if (player.dir === -1) { 
@@ -221,7 +214,6 @@ function updateShooter(dt) {
   for (let i = shootEnemies.length - 1; i >= 0; i--) {
     let en = shootEnemies[i]; en.x += en.speed * dt * en.dir;
     
-    // 绘制怪物 (已去底)
     if(enemyImgObj.complete && enemyImgObj.naturalWidth > 0){
         ctx.drawImage(enemyImgObj, en.x - 15, en.y - 20, en.w, en.h);
     } else {
@@ -291,7 +283,6 @@ async function generateAndProcessImage(prompt, isSprite = false) {
     
     const originalUrl = data.data[0].url;
     if(isSprite) {
-        // 如果是立绘，直接在前端进行像素级抠图！
         return await processImageRemoveBg(originalUrl);
     }
     return originalUrl;
