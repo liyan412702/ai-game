@@ -1,607 +1,70 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v3.2</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
-  canvas { display:block; width:100%; height:100%; touch-action:none; }
-  #canvas3d, #canvas2d { position:absolute; top:0; left:0; width:100%; height:100%; }
-  
-  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#ff00cc; background:rgba(255,0,204,0.15); border:1px solid #ff00cc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
-  
-  #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
-  #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
-  
-  /* AI 策划思路显示框 */
-  #ai-thoughts { position:fixed; top:calc(120px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; font-style:italic; text-shadow:0 1px 2px #000; pointer-events:none; z-index:5; opacity:0.8; background:rgba(0,0,0,0.5); padding:6px; border-radius:6px; border-left:3px solid #00ffcc; display:none; }
+export default async function onRequest({ request }) {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
+  }
 
-  #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px;); }
-  #history-panel { position:fixed; top:0; right:-100%; width:80%; max-width:300px; height:100%; background:rgba(15,15,25,0.95); z-index:20; transition:right 0.3s ease; padding:20px; overflow-y:auto; border-left:1px solid rgba(255,255,255,0.1); }
-  #history-panel.show { right:0; }
-  .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:10px; margin-bottom:10px; color:#ccc; font-size:14px; }
-  .history-item:active { background:rgba(78,161,255,0.2); }
+  try {
+    const body = await request.json();
+    const prompt = body.prompt;
+    if (!prompt) return new Response(JSON.stringify({ error: '缺少描述' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
 
-  #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; }
-  .pad { display:flex; gap:12px; pointer-events:auto; }
-  .btn-ctrl { width:64px; height:64px; border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-size:24px; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; transition:0.1s; }
-  .btn-ctrl:active, .btn-ctrl.on { background:rgba(78,161,255,.6); border-color:#4ea1ff; transform:scale(0.92); box-shadow:0 0 15px #4ea1ff; }
-  #jump { width:76px; height:76px; font-size:18px; }
-  #shoot { width:76px; height:76px; font-size:18px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
-  #shoot:active { background:rgba(255,0,102,0.6); box-shadow:0 0 15px #ff0066; }
-  
-  #panel { position:fixed; left:0; right:0; bottom:0; background:rgba(12,12,22,.95); border-top:1px solid rgba(255,255,255,.15); border-radius:18px 18px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom)); z-index:8; transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter:blur(12px); }
-  #panel.collapsed { transform:translateY(calc(100% - 46px)); }
-  #panelToggle { height:34px; display:flex; align-items:center; justify-content:center; color:#889; font-size:13px; cursor:pointer; margin-bottom:8px; }
-  #panelToggle::before { content:''; width:44px; height:5px; border-radius:3px; background:rgba(255,255,255,.25); }
-  #prompt { width:100%; height:48px; resize:none; border-radius:12px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.05); color:#fff; padding:10px 12px; font-size:15px; outline:none; line-height:1.4; }
-  #prompt:focus { border-color:#4ea1ff; box-shadow:0 0 10px rgba(78,161,255,.3); }
-  .row { display:flex; gap:8px; margin-top:10px; align-items:center; }
-  #gen { flex:1; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; box-shadow:0 4px 15px rgba(78,161,255,.4); cursor:pointer; }
-  #gen:active { filter:brightness(0.9); transform:translateY(2px); }
-  #gen:disabled { opacity:.6; }
-  #examples { display:flex; gap:8px; margin-top:10px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
-  .example { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:transparent; color:#cfd8ff; font-size:13px; white-space:nowrap; cursor:pointer; }
-  .example:active { background:rgba(255,255,255,.1); }
-  
-  #overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.7); z-index:20; padding:20px; backdrop-filter:blur(4px); }
-  #overlay.show { display:flex; }
-  #overlay .card { background:rgba(20,20,35,.95); border:1px solid rgba(78,161,255,.3); border-radius:18px; padding:26px 24px; text-align:center; color:#fff; width:100%; max-width:340px; }
-  #overlay h2 { font-size:24px; margin-bottom:10px; }
-  #overlay p { color:#aab; margin-bottom:20px; font-size:14px; }
-  #overlay button { width:100%; height:46px; border:none; border-radius:12px; background:linear-gradient(135deg,#4ea1ff,#8b5cf6); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
-</style>
-</head>
-<body>
-<canvas id="canvas3d"></canvas>
-<canvas id="canvas2d" style="display:none;"></canvas>
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: `你是一位资深游戏架构师（如同小岛秀夫或宫本茂级别）。在生成配置前，你必须进行深度的“游戏拆解分析”。
 
-<div id="version-badge">v3.2 深度学习版</div>
+【强制思考流程】（必须体现在 design_thoughts 字段中）：
+1. 记忆检索：用户提到的游戏（如魂斗罗、塔防、跑酷等），它的核心乐趣是什么？玩家在玩的时候处于什么心理状态？
+2. 难度曲线：为了制造这种乐趣，数值该怎么调？（比如：魂斗罗必须充满紧张感，怪物要多；休闲跑酷必须放松）。
+3. 参数映射：将你推导出的数值，精准填入 JSON 中。
 
-<div id="hud">
-  <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
-  <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
-  <div id="status" style="margin-top:2px; color:#aab;">生成后开始</div>
-</div>
+【硬核设计指南】：
+- 射击类（如魂斗罗）：必须有高密度的敌人（enemyCount > 20），高速移动（enemySpeed > 180），给予玩家极强的压迫感。
+- 塔防类：必须考验策略，怪物血量递增（enemyHp > 150），波数拉长（waves > 8）。
+- 跑酷类：强调速度感，移速必须快（speed > 20）。
 
-<div id="ai-thoughts"></div>
-
-<button id="history-btn">📜 历史记录</button>
-<div id="history-panel">
-  <h3 style="color:#fff; margin-bottom:15px; font-size:16px;">历史生成记录</h3>
-  <div id="history-list"></div>
-  <button id="close-history" style="width:100%; padding:10px; margin-top:20px; background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:8px; cursor:pointer;">关闭</button>
-</div>
-
-<div id="controls">
-  <div class="pad" id="move-controls">
-    <div class="btn-ctrl" id="left">←</div>
-    <div class="btn-ctrl" id="right">→</div>
-  </div>
-  <div class="pad" id="action-controls">
-    <div class="btn-ctrl" id="jump">跳</div>
-    <div class="btn-ctrl" id="shoot" style="display:none;">射击</div>
-  </div>
-</div>
-
-<div id="panel">
-  <div id="panelToggle"></div>
-  <textarea id="prompt" placeholder="输入你想玩的（如：魂斗罗 / 塔防 / 换装）"></textarea>
-  <div class="row"><button id="gen">✨ 生成游戏</button></div>
-  <div id="examples">
-    <button class="example" data-p="魂斗罗">魂斗罗·射击</button>
-    <button class="example" data-p="赛博朋克极速跑酷">赛博朋克·跑酷</button>
-    <button class="example" data-p="地狱级塔防">2D·塔防</button>
-    <button class="example" data-p="二次元换装">二次元·换装</button>
-  </div>
-</div>
-
-<div id="overlay">
-  <div class="card">
-    <h2 id="ovTitle">游戏结束</h2>
-    <p id="ovDesc"></p>
-    <button id="ovBtn">再来一次</button>
-  </div>
-</div>
-
-<script type="importmap">
+输出严格的 JSON 格式：
 {
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script type="module">
-import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-
-const SVG_ASSETS = {
-    player: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/><rect x="15" y="15" width="5" height="5" fill="%23fff"/><rect x="30" y="15" width="5" height="5" fill="%23fff"/></svg>',
-    enemy: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><polygon points="20,5 35,20 20,35 5,20" fill="%23ff0066"/><circle cx="15" cy="15" r="3" fill="%23fff"/><circle cx="25" cy="15" r="3" fill="%23fff"/><rect x="10" y="35" width="5" height="15" fill="%23ff0066"/><rect x="25" y="35" width="5" height="15" fill="%23ff0066"/></svg>',
-    boss: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><polygon points="30,0 60,30 30,60 0,30" fill="%23aa00ff"/><circle cx="20" cy="20" r="8" fill="%23ff0000"/><circle cx="40" cy="20" r="8" fill="%23ff0000"/><rect x="15" y="40" width="30" height="10" fill="%23ff0000"/></svg>',
-    ship: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60"><polygon points="20,0 40,40 20,30 0,40" fill="%2300ffff"/><rect x="15" y="40" width="10" height="20" fill="%23ff0066" opacity="0.8"/></svg>',
-    tower: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="%23333333" stroke="%2300ffff" stroke-width="3"/><rect x="18" y="0" width="4" height="20" fill="%2300ffff"/><circle cx="20" cy="20" r="5" fill="%2300ffff"/></svg>',
-    chest: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><rect x="5" y="15" width="20" height="15" fill="%23ffaa00"/><rect x="5" y="10" width="20" height="8" fill="%23ffcc00" rx="4"/><circle cx="15" cy="20" r="3" fill="%23000"/></svg>'
-};
-const imgs = {};
-for (let key in SVG_ASSETS) { imgs[key] = new Image(); imgs[key].src = SVG_ASSETS[key]; }
-
-const THEMES = {
-  default: { bg:0x050508, ground:0x1b1b2a, player:0x4ea1ff, obstacle:0xff5c8a },
-  cyber:   { bg:0x050510, ground:0x111128, player:0x00ffff, obstacle:0xff0066 }
-};
-
-let config = { 
-    gameType:'parkour', theme:'default', title:'默认游戏', speed:14, jumpForce:9, gravity:26, density:0.7, targetScore:200, 
-    waves:5, enemyHp:100, coins:200, hairColor: '#ff0066', clothesColor: '#00ffff', pantsColor: '#ffcc00', 
-    enemyCount: 10, enemySpeed: 120, playerHp: 100, design_thoughts: ''
-};
-
-let state = 'ready';
-const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
-const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main'), aiThoughtsEl = document.getElementById('ai-thoughts');
-function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
-function hideOverlay() { overlay.classList.remove('show'); }
-ovBtn.addEventListener('click', () => { hideOverlay(); startGame(); });
-
-const panel = document.getElementById('panel');
-const promptEl = document.getElementById('prompt');
-document.getElementById('panelToggle').addEventListener('click', () => {
-    const isCollapsed = panel.classList.contains('collapsed');
-    if (isCollapsed) {
-        if (state === 'playing') { state = 'paused'; if(statusEl) statusEl.textContent = '游戏已暂停（输入中）'; }
-    } else {
-        if (state === 'paused') { state = 'playing'; if(statusEl) statusEl.textContent = '进行中 · ' + config.title; }
-    }
-    panel.classList.toggle('collapsed');
-});
-promptEl.addEventListener('focus', () => {
-    if (state === 'playing') { state = 'paused'; if(statusEl) statusEl.textContent = '游戏已暂停（输入中）'; }
-});
-promptEl.addEventListener('blur', () => {
-    if (state === 'paused' && panel.classList.contains('collapsed')) {
-        state = 'playing'; if(statusEl) statusEl.textContent = '进行中 · ' + config.title;
-    }
-});
-
-const canvas3d = document.getElementById('canvas3d');
-const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 400);
-camera.position.set(0, 6, 11); camera.lookAt(0, 1.5, -12);
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera)); composer.addPass(bloomPass);
-
-let ground, player3d, ambientLight, dirLight, gridHelper;
-const obstacles = [];
-let p3dDist = 0, p3dScore = 0, p3dX = 0, p3dY = 1, p3dVY = 0, p3dGround = true, p3dTimer = 0;
-
-function build3DScene() {
-  for (const o of obstacles) scene.remove(o); obstacles.length = 0;
-  if (ground) scene.remove(ground); if (gridHelper) scene.remove(gridHelper);
-  if (player3d) scene.remove(player3d); if (ambientLight) scene.remove(ambientLight); if (dirLight) scene.remove(dirLight);
-
-  const t = THEMES[config.theme] || THEMES.default;
-  scene.background = new THREE.Color(t.bg); scene.fog = new THREE.Fog(t.bg, 40, 150);
-  ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 300), new THREE.MeshStandardMaterial({ color:t.ground, roughness:0.8 }));
-  ground.rotation.x = -Math.PI / 2; ground.position.z = -140; scene.add(ground);
-  gridHelper = new THREE.GridHelper(300, 150, t.player, t.ground); gridHelper.position.z = -140; gridHelper.position.y = 0.01; scene.add(gridHelper);
+  "design_thoughts": "在这里写你的拆解分析（一句话）",
+  "gameType": "parkour|tower|dressup|shooter",
+  "theme": "default|cyber|forest|desert|snow|space",
+  "title": "酷炫且有内味的游戏名",
   
-  const texture = new THREE.TextureLoader().load(SVG_ASSETS.ship);
-  const mat = new THREE.MeshStandardMaterial({ map: texture, transparent: true, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 2 });
-  player3d = new THREE.Mesh(new THREE.PlaneGeometry(2, 3), mat);
-  player3d.position.set(0, 1.5, 0); scene.add(player3d);
-  
-  ambientLight = new THREE.AmbientLight(0xffffff, 0.5); scene.add(ambientLight);
-  dirLight = new THREE.DirectionalLight(0xffffff, 1.5); dirLight.position.set(5, 15, 5); scene.add(dirLight);
+  "speed": 18, "density": 1.0, "targetScore": 300,
+  "waves": 10, "enemyHp": 150, "coins": 300,
+  "enemyCount": 25, "enemySpeed": 180, "playerHp": 100,
+  "hairColor": "#ff0066", "clothesColor": "#00ffff", "pantsColor": "#ffcc00"
 }
-
-function update3D(dt) {
-  if (state !== 'playing') return;
-  const speed = config.speed || 14;
-  if (keys.left) p3dX -= 10 * dt; if (keys.right) p3dX += 10 * dt;
-  p3dX = Math.max(-5, Math.min(5, p3dX));
-  if (!p3dGround) { p3dVY -= 26 * dt; p3dY += p3dVY * dt; if (p3dY <= 1.5) { p3dY = 1.5; p3dVY = 0; p3dGround = true; } }
-  player3d.position.set(p3dX, p3dY, 0);
-  
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    const o = obstacles[i]; o.position.z += speed * dt;
-    if (o.position.z > 8) { scene.remove(o); obstacles.splice(i, 1); }
-  }
-  p3dTimer -= dt; if (p3dTimer <= 0) {
-    const size = 1.5 + Math.random() * 1.5;
-    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(size), new THREE.MeshStandardMaterial({ color: 0xff0066, emissive: 0xff0066, emissiveIntensity: 1 }));
-    mesh.position.set((Math.random() - 0.5) * 8, size, -100);
-    mesh.userData = { hw: size, hh: size }; scene.add(mesh); obstacles.push(mesh);
-    p3dTimer = 0.9 / Math.max(0.2, (config.density||0.7));
-  }
-  for (const o of obstacles) {
-    if (Math.abs(o.position.x - player3d.position.x) < o.userData.hw + 0.6 && Math.abs(o.position.y - player3d.position.y) < o.userData.hh + 1 && Math.abs(o.position.z - player3d.position.z) < 1.0) {
-      state = 'over'; showOverlay('💥 坠毁了！', `得分 ${p3dScore}`); return;
-    }
-  }
-  p3dDist += speed * dt; p3dScore = Math.floor(p3dDist / 2); 
-  if (hudMain) hudMain.innerHTML = `得分 <span class="big">${p3dScore}</span> / <span>${config.targetScore||200}</span>`;
-  if (p3dScore >= (config.targetScore||200)) { state = 'win'; showOverlay('🎉 通关！', `你完成了《${config.title}》`); }
-}
-
-const canvas2d = document.getElementById('canvas2d');
-const ctx = canvas2d.getContext('2d');
-function resize2D() { canvas2d.width = window.innerWidth; canvas2d.height = window.innerHeight; }
-
-let enemies2d = [], towers2d = [], bullets2d = [], coins2d = 0, baseHp2d = 100, wave2d = 1, spawnTimer2d = 0, spawnedCount2d = 0;
-function buildTowerScene() { resize2D(); coins2d = config.coins || 200; baseHp2d = 100; wave2d = 1; enemies2d = []; towers2d = []; bullets2d = []; spawnTimer2d = 0; spawnedCount2d = 0; }
-function updateTower(dt) {
-  ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-  ctx.strokeStyle = '#222'; ctx.lineWidth = 50; ctx.beginPath(); ctx.moveTo(canvas2d.width, canvas2d.height / 2); ctx.lineTo(0, canvas2d.height / 2); ctx.stroke();
-  spawnTimer2d -= dt; const maxWaves = config.waves || 5; const totalEnemies = maxWaves * 5;
-  if (spawnTimer2d <= 0 && spawnedCount2d < totalEnemies) {
-    spawnedCount2d++; enemies2d.push({ x: canvas2d.width + 20, y: canvas2d.height / 2, hp: config.enemyHp || 100, maxHp: config.enemyHp || 100, speed: 30 + wave2d * 10 });
-    spawnTimer2d = 1.0; if (spawnedCount2d % 5 === 0) wave2d++;
-  }
-  for (let i = enemies2d.length - 1; i >= 0; i--) {
-    const en = enemies2d[i]; en.x -= en.speed * dt; ctx.drawImage(imgs.enemy, en.x - 15, en.y - 25, 30, 30);
-    ctx.fillStyle = '#fff'; ctx.fillRect(en.x - 15, en.y - 30, 30 * (en.hp / en.maxHp), 3);
-    if (en.x < 0) { baseHp2d -= 10; enemies2d.splice(i, 1); }
-    if (baseHp2d <= 0) { state = 'over'; showOverlay('💀 基地被摧毁！', `坚持到了第 ${wave2d} 波`); return; }
-  }
-  towers2d.forEach(t => {
-    t.cooldown -= dt;
-    if (t.cooldown <= 0) { const target = enemies2d.find(e => Math.hypot(e.x - t.x, e.y - t.y) < t.range); if (target) { bullets2d.push({ x: t.x, y: t.y, target, speed: 400, dmg: 50 }); t.cooldown = 0.5; } }
-    ctx.drawImage(imgs.tower, t.x - 20, t.y - 20, 40, 40);
-  });
-  for (let i = bullets2d.length - 1; i >= 0; i--) {
-    const b = bullets2d[i];
-    if (!b.target || b.target.hp <= 0) { bullets2d.splice(i, 1); continue; }
-    const dx = b.target.x - b.x, dy = b.target.y - b.y, dist = Math.hypot(dx, dy);
-    if (dist < 20) { b.target.hp -= b.dmg; bullets2d.splice(i, 1); } else { b.x += (dx / dist) * b.speed * dt; b.y += (dy / dist) * b.speed * dt; }
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
-  }
-  enemies2d = enemies2d.filter(e => e.hp > 0);
-  if (hudMain) hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${baseHp2d} HP</span> | 金币 ${coins2d}`;
-  if (statusEl) statusEl.textContent = `波次: ${wave2d}/${maxWaves} | 点击建塔(50金币)`;
-}
-
-let dressupColors = []; let dressupParts = { hair: 0, clothes: 0, pants: 0 };
-function buildDressupScene() { resize2D(); dressupColors = [config.hairColor || '#ff0066', config.clothesColor || '#00ffff', config.pantsColor || '#ffcc00', '#ffffff', '#ffaa00']; dressupParts = { hair: 0, clothes: 1, pants: 2 }; }
-function updateDressup() {
-  ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-  const cx = canvas2d.width / 2, cy = canvas2d.height / 2 - 50;
-  ctx.fillStyle = dressupColors[dressupParts.pants]; ctx.fillRect(cx - 30, cy + 60, 25, 80); ctx.fillRect(cx + 5, cy + 60, 25, 80);
-  ctx.fillStyle = dressupColors[dressupParts.clothes]; ctx.fillRect(cx - 40, cy - 20, 80, 80);
-  ctx.fillStyle = dressupColors[dressupParts.hair]; ctx.beginPath(); ctx.arc(cx, cy - 50, 40, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
-  ctx.strokeRect(cx - 45, cy - 95, 90, 90); ctx.strokeRect(cx - 45, cy - 25, 90, 90); ctx.strokeRect(cx - 35, cy + 55, 70, 90); ctx.setLineDash([]);
-  if (statusEl) statusEl.textContent = `点击头部/身体/腿部换色`;
-}
-
-let player = { x: 100, y: 0, vx: 0, vy: 0, w: 40, h: 60, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false, weaponLevel: 1 };
-let camX = 0;
-let shootEnemies = [], shootBullets = [], particles = [], chests = [];
-let levelLength = 3000, initShootY = 0, spawnTimerShoot = 0, killedCount = 0, bossSpawned = false;
-let platforms = [];
-
-function buildShooterScene() {
-  resize2D();
-  initShootY = canvas2d.height - 120;
-  player = { x: 100, y: initShootY - 60, vx: 0, vy: 0, w: 30, h: 50, hp: config.playerHp || 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false, weaponLevel: 1 };
-  camX = 0; shootEnemies = []; shootBullets = []; particles = []; chests = [];
-  spawnTimerShoot = 0; killedCount = 0; bossSpawned = false;
-
-  platforms = [
-    { x: 0, y: initShootY, w: 1000, h: 200 },
-    { x: 1100, y: initShootY, w: 400, h: 200 },
-    { x: 1600, y: initShootY - 100, w: 300, h: 200 },
-    { x: 2000, y: initShootY, w: 600, h: 200 },
-    { x: 2700, y: initShootY - 50, w: 300, h: 200 }
-  ];
-}
-
-function spawnParticles(x, y, color, count) {
-  for (let i = 0; i < count; i++) {
-    particles.push({ x, y, vx: (Math.random() - 0.5) * 400, vy: (Math.random() - 0.5) * 400, life: 1, color });
-  }
-}
-
-function updateShooter(dt) {
-  ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-  
-  const moveSpeed = 300;
-  if (keys.left) { player.vx = -moveSpeed; player.dir = -1; }
-  else if (keys.right) { player.vx = moveSpeed; player.dir = 1; }
-  else { player.vx = 0; }
-
-  player.vy += 1500 * dt;
-  player.x += player.vx * dt;
-  player.y += player.vy * dt;
-  
-  if (player.x < 0) player.x = 0;
-  if (player.x > levelLength) player.x = levelLength;
-
-  player.onGround = false;
-  for (let p of platforms) {
-    if (player.x + player.w/2 > p.x && player.x - player.w/2 < p.x + p.w) {
-      if (player.y + player.h > p.y && player.y + player.h < p.y + p.h / 2) {
-        if (player.vy > 0) { player.y = p.y - player.h; player.vy = 0; player.onGround = true; }
-      }
-    }
-  }
-  
-  let targetCamX = player.x - canvas2d.width / 3;
-  if (targetCamX < 0) targetCamX = 0;
-  camX += (targetCamX - camX) * 10 * dt;
-
-  if (player.invincible > 0) player.invincible -= dt;
-
-  ctx.save();
-  ctx.translate(-camX, 0);
-  
-  for (let p of platforms) {
-    ctx.fillStyle = '#1a1a2e'; ctx.fillRect(p.x, p.y, p.w, p.h);
-    ctx.fillStyle = '#00ffff'; ctx.fillRect(p.x, p.y, p.w, 2);
-  }
-
-  if (player.invincible <= 0 || Math.floor(Date.now() / 100) % 2 === 0) {
-    ctx.save();
-    if (player.dir === -1) { ctx.translate(player.x, player.y); ctx.scale(-1, 1); ctx.drawImage(imgs.player, -player.w/2, 0, player.w, player.h); } 
-    else { ctx.drawImage(imgs.player, player.x - player.w/2, player.y, player.w, player.h); }
-    ctx.restore();
-  }
-
-  if (player.isShooting && player.shootCd <= 0) {
-    const gunX = player.x + player.dir * 20, gunY = player.y + 20;
-    if (player.weaponLevel === 1) shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 800, vy: 0 });
-    else if (player.weaponLevel === 2) {
-      shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 800, vy: 0 });
-      shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 700, vy: -200 });
-      shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 700, vy: 200 });
-    }
-    spawnParticles(gunX, gunY, '#ffff00', 3);
-    player.shootCd = 0.15;
-  }
-  if (player.shootCd > 0) player.shootCd -= dt;
-
-  for (let i = shootBullets.length - 1; i >= 0; i--) {
-    let b = shootBullets[i]; b.x += b.vx * dt; b.y += b.vy * dt;
-    ctx.fillStyle = '#ffff00'; ctx.fillRect(b.x, b.y, 10, 3);
-    if (b.x > camX + canvas2d.width || b.x < camX - 100 || b.y > canvas2d.height) shootBullets.splice(i, 1);
-  }
-
-  spawnTimerShoot -= dt;
-  const targetEnemies = config.enemyCount || 10;
-  if (spawnTimerShoot <= 0 && !bossSpawned) {
-    let spawnX = camX + canvas2d.width + 100;
-    let spawnRate = Math.max(0.3, 2.0 - targetEnemies * 0.05); 
-    if (spawnX < levelLength - 200) shootEnemies.push({ 
-        x: spawnX, y: initShootY - 40, w: 40, h: 40, 
-        hp: 30, speed: config.enemySpeed || 120, type: 'ground', dir: -1 
+注意：只输出 JSON，不要输出任何解释文字！` },
+          { role: 'user', content: prompt }
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 500,
+        temperature: 1.0 // 调到 1.0，释放它的狂野想象力
+      })
     });
-    spawnTimerShoot = spawnRate;
-  }
 
-  if (Math.random() < 0.005 && chests.length < 2 && !bossSpawned) chests.push({ x: camX + canvas2d.width, y: initShootY - 30, w: 30, h: 30 });
-
-  for (let i = chests.length - 1; i >= 0; i--) {
-    let c = chests[i]; ctx.drawImage(imgs.chest, c.x, c.y, c.w, c.h);
-    if (player.x + player.w/2 > c.x && player.x - player.w/2 < c.x + c.w && player.y + player.h > c.y && player.y < c.y + c.h) {
-      player.weaponLevel = 2; spawnParticles(c.x, c.y, '#ffaa00', 15); chests.splice(i, 1);
+    if (!response.ok) {
+      const err = await response.text();
+      return new Response(JSON.stringify({ error: 'DeepSeek调用失败', detail: err }), { status: 502, headers: { 'Content-Type': 'application/json' } });
     }
-  }
 
-  for (let i = shootEnemies.length - 1; i >= 0; i--) {
-    let en = shootEnemies[i]; en.x += en.speed * dt * en.dir;
-    ctx.drawImage(imgs.enemy, en.x, en.y, en.w, en.h);
-    ctx.fillStyle = '#ff0000'; ctx.fillRect(en.x, en.y - 10, en.w * (en.hp / 30), 4);
-    if (Math.abs(en.x - player.x) < 30 && Math.abs(en.y - player.y) < 50 && player.invincible <= 0) {
-      player.hp -= 20; player.invincible = 1.5; spawnParticles(player.x, player.y, '#ff0000', 20);
-      if (player.hp <= 0) { state = 'over'; showOverlay('💀 阵亡了！', `击杀数: ${killedCount}`); return; }
-    }
-    for (let j = shootBullets.length - 1; j >= 0; j--) {
-      let b = shootBullets[j];
-      if (b.x > en.x && b.x < en.x + en.w && b.y > en.y && b.y < en.y + en.h) {
-        en.hp -= 10; shootBullets.splice(j, 1); spawnParticles(b.x, b.y, '#ff0066', 5);
-        if (en.hp <= 0) { shootEnemies.splice(i, 1); killedCount++; spawnParticles(en.x, en.y, '#ff0066', 15); break; }
-      }
-    }
-    if (en.x < camX - 100) shootEnemies.splice(i, 1);
-  }
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content || content.trim() === '') return new Response(JSON.stringify({ error: 'AI返回空内容' }), { status: 502, headers: { 'Content-Type': 'application/json' } });
 
-  for (let i = particles.length - 1; i >= 0; i--) {
-    let p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 2;
-    if (p.life <= 0) { particles.splice(i, 1); continue; }
-    ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, 4, 4); ctx.globalAlpha = 1;
-  }
-
-  if (killedCount >= targetEnemies && !bossSpawned) {
-    bossSpawned = true;
-    let bossHp = 300 + targetEnemies * 10; 
-    shootEnemies.push({ x: camX + canvas2d.width - 100, y: initShootY - 120, w: 100, h: 100, hp: bossHp, speed: 50, type: 'boss', dir: -1 });
-    if(statusEl) statusEl.textContent = '⚠️ 警告：史诗BOSS出现！';
-  }
-  if (bossSpawned && shootEnemies.length === 0) { state = 'win'; showOverlay('🎉 消灭了BOSS！', `你拯救了世界！`); return; }
-
-  ctx.restore();
-
-  if (hudMain) hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${player.hp} HP</span> | 击杀 ${killedCount}/${targetEnemies}`;
-  
-  if (player.invincible > 1.4) canvas2d.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
-  else canvas2d.style.transform = `none`;
-}
-
-canvas2d.addEventListener('pointerdown', (e) => {
-  if (state !== 'playing') return;
-  if (config.gameType === 'tower' && coins2d >= 50) { coins2d -= 50; towers2d.push({ x: e.clientX + camX, y: e.clientY, range: 150, cooldown: 0 }); }
-  if (config.gameType === 'dressup') {
-    const cx = canvas2d.width / 2, cy = canvas2d.height / 2 - 50, x = e.clientX, y = e.clientY;
-    if (y > cy - 95 && y < cy - 5) dressupParts.hair = (dressupParts.hair + 1) % dressupColors.length;
-    else if (y >= cy - 5 && y < cy + 65) dressupParts.clothes = (dressupParts.clothes + 1) % dressupColors.length;
-    else if (y >= cy + 65 && y < cy + 145) dressupParts.pants = (dressupParts.pants + 1) % dressupColors.length;
-  }
-});
-
-let lastTime = performance.now();
-function animate(now) {
-  requestAnimationFrame(animate);
-  const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
-  if (state === 'paused') return; 
-  if (state !== 'playing') return;
-
-  try {
-      if (config.gameType === 'tower') updateTower(dt);
-      else if (config.gameType === 'dressup') updateDressup();
-      else if (config.gameType === 'shooter') updateShooter(dt);
-      else { update3D(dt); composer.render(); }
-  } catch(e) { console.error(e); }
-}
-
-function startGame() {
-  hideOverlay(); panel.classList.add('collapsed');
-  state = 'playing';
-  if (statusEl) statusEl.textContent = '进行中 · ' + config.title;
-  document.getElementById('hud-title').textContent = config.title;
-
-  // 显示 AI 的策划思路
-  if (config.design_thoughts) {
-      aiThoughtsEl.textContent = "💡 策划思路: " + config.design_thoughts;
-      aiThoughtsEl.style.display = 'block';
-      setTimeout(() => { aiThoughtsEl.style.display = 'none'; }, 6000); // 6秒后自动隐藏
-  }
-
-  document.getElementById('move-controls').style.display = 'none';
-  document.getElementById('action-controls').style.display = 'none';
-  document.getElementById('jump').style.display = 'none';
-  document.getElementById('shoot').style.display = 'none';
-
-  if (config.gameType === 'parkour') {
-    canvas3d.style.display = 'block'; canvas2d.style.display = 'none';
-    document.getElementById('move-controls').style.display = 'flex';
-    document.getElementById('action-controls').style.display = 'flex';
-    document.getElementById('jump').style.display = 'flex';
-    build3DScene(); p3dDist = 0; p3dScore = 0; p3dX = 0; p3dY = 1.5; p3dVY = 0; p3dGround = true; p3dTimer = 0;
-  } else {
-    canvas3d.style.display = 'none'; canvas2d.style.display = 'block';
-    if (config.gameType === 'tower') { buildTowerScene(); }
-    if (config.gameType === 'dressup') { buildDressupScene(); }
-    if (config.gameType === 'shooter') { 
-        buildShooterScene(); 
-        document.getElementById('move-controls').style.display = 'flex';
-        document.getElementById('action-controls').style.display = 'flex';
-        document.getElementById('jump').style.display = 'flex';
-        document.getElementById('shoot').style.display = 'flex';
-    }
-  }
-}
-
-const keys = { left:false, right:false };
-function bindCtrl(id, startFn, endFn) {
-    const el = document.getElementById(id);
-    el.addEventListener('touchstart', (e) => { e.preventDefault(); startFn(); el.classList.add('on'); }, {passive: false});
-    el.addEventListener('touchend', (e) => { e.preventDefault(); endFn(); el.classList.remove('on'); }, {passive: false});
-    el.addEventListener('touchcancel', (e) => { e.preventDefault(); endFn(); el.classList.remove('on'); }, {passive: false});
-    el.addEventListener('mousedown', () => { startFn(); el.classList.add('on'); });
-    el.addEventListener('mouseup', () => { endFn(); el.classList.remove('on'); });
-    el.addEventListener('mouseleave', () => { endFn(); el.classList.remove('on'); });
-}
-
-bindCtrl('left', () => keys.left = true, () => keys.left = false);
-bindCtrl('right', () => keys.right = true, () => keys.right = false);
-bindCtrl('jump', () => { 
-    if(state!=='playing') return;
-    if(config.gameType==='parkour' && p3dGround) { p3dVY = 10; p3dGround = false; } 
-    if(config.gameType==='shooter' && player.onGround) { player.vy = -650; player.onGround = false; }
-}, () => {});
-bindCtrl('shoot', () => { if(state==='playing' && config.gameType==='shooter') player.isShooting = true; }, 
-                  () => { if(config.gameType==='shooter') player.isShooting = false; });
-
-document.addEventListener('keydown', (e) => { 
-    if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true; 
-    if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true; 
-    if (e.code === 'Space') { 
-        e.preventDefault();
-        if(config.gameType==='parkour' && state === 'playing' && p3dGround) { p3dVY = 10; p3dGround = false; } 
-        if(config.gameType==='shooter' && state === 'playing' && player.onGround) { player.vy = -650; player.onGround = false; }
-    } 
-    if (e.key === 'j' || e.key === 'J') { if(state==='playing' && config.gameType==='shooter') player.isShooting = true; }
-});
-document.addEventListener('keyup', (e) => { 
-    if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false; 
-    if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false; 
-    if (e.key === 'j' || e.key === 'J') { if(config.gameType==='shooter') player.isShooting = false; }
-});
-
-window.addEventListener('resize', () => { 
-    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); 
-    renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); resize2D(); 
-});
-
-const genBtn = document.getElementById('gen');
-const historyBtn = document.getElementById('history-btn'), historyPanel = document.getElementById('history-panel'), historyList = document.getElementById('history-list');
-historyBtn.addEventListener('click', () => { 
-    if (state === 'playing') { state = 'paused'; if(statusEl) statusEl.textContent = '游戏已暂停（查看记录）'; }
-    renderHistory(); historyPanel.classList.add('show'); 
-});
-document.getElementById('close-history').addEventListener('click', () => { 
-    historyPanel.classList.remove('show'); 
-    if (state === 'paused') { state = 'playing'; if(statusEl) statusEl.textContent = '进行中 · ' + config.title; }
-});
-
-function saveHistory(promptText, configObj) {
-  let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
-  hist = hist.filter(item => item.prompt !== promptText);
-  hist.unshift({ prompt: promptText, config: configObj, time: Date.now() });
-  if (hist.length > 20) hist.pop();
-  localStorage.setItem('ai_game_history', JSON.stringify(hist));
-}
-function renderHistory() {
-  let hist = JSON.parse(localStorage.getItem('ai_game_history') || '[]');
-  if (hist.length === 0) { historyList.innerHTML = '<p style="color:#666; text-align:center;">暂无</p>'; return; }
-  historyList.innerHTML = hist.map((item, index) => `
-    <div class="history-item" data-index="${index}">
-      <div style="color:#fff; margin-bottom:4px;">${item.config.title}</div>
-      <div style="font-size:12px; color:#889; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.prompt}</div>
-    </div>`).join('');
-  document.querySelectorAll('.history-item').forEach(el => {
-    el.addEventListener('click', () => { const idx = parseInt(el.dataset.index); config = hist[idx].config; promptEl.value = hist[idx].prompt; startGame(); historyPanel.classList.remove('show'); });
-  });
-}
-
-async function generate() {
-  const text = promptEl.value.trim() || '做一个默认的3D跑酷游戏';
-  genBtn.disabled = true; genBtn.textContent = 'AI深度思考中…';
-  try {
-    const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '生成失败');
-    config = data; 
+    const config = JSON.parse(content);
     
-    // 去掉之前的保底，完全依靠 AI 的自主学习
-    if (text.includes('塔防') || text.includes('防御')) config.gameType = 'tower';
-    else if (text.includes('换装') || text.includes('穿衣') || text.includes('衣服') || text.includes('打扮')) config.gameType = 'dressup';
-    else if (text.includes('射击') || text.includes('魂斗罗') || text.includes('枪') || text.includes('战斗')) config.gameType = 'shooter';
-    else config.gameType = 'parkour';
-    
-    if(!config.title) config.title = '自定义游戏';
-    saveHistory(text, config);
-  } catch (err) {
-    alert('AI生成失败：' + err.message); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏'; return;
-  }
-  startGame(); genBtn.disabled = false; genBtn.textContent = '✨ 生成游戏';
-}
-genBtn.addEventListener('click', generate);
-document.querySelectorAll('.example').forEach(btn => {
-  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; generate(); });
-});
+    // 将 AI 的“拆解思路”透传给前端，让你看看它的“学习成果”
+    return new Response(JSON.stringify(config), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
-resize2D(); requestAnimationFrame(animate);
-</script>
-</body>
-</html>
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+}
