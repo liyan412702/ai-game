@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v5.0</title>
+<title>AI游戏造梦器 v5.1</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
   #canvas2d { position:relative; z-index:2; }
   #game-bg { position:fixed; inset:0; background-size:cover; background-position:center; z-index:1; opacity:0.4; display:none; }
-  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#ff00cc; background:rgba(255,0,204,0.15); border:1px solid #ff00cc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
+  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#00ffcc; background:rgba(0,255,204,0.15); border:1px solid #00ffcc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
   #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
   #ai-thoughts { position:fixed; top:calc(120px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; font-style:italic; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; line-height:1.4; z-index:5; }
@@ -46,7 +46,7 @@
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
 <div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
-<div id="version-badge">v5.0 绝对透明版</div>
+<div id="version-badge">v5.1 后端转码版</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span></div>
@@ -72,6 +72,7 @@
 </div>
 
 <script type="module">
+// 因为后端已经转码了，所以我们前端不需要再请求智谱 API 了，这里只保留 Key 用于传给后端。
 const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
 
 const SVG_PLAYER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/></svg>';
@@ -89,51 +90,30 @@ const panel = document.getElementById('panel'), promptEl = document.getElementBy
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 window.addEventListener('resize', resize2D);
 
-// 🌟 核心黑科技：四角基准法抠图（绝对去底）
-async function processImageRemoveBg(url) {
+// 🌟 极简、暴力的 Base64 抠图（因为不再跨域，100%成功）
+function processBase64RemoveBg(base64Str) {
+    if(!base64Str) return null;
     return new Promise((resolve) => {
         const img = new Image();
-        img.crossOrigin = "Anonymous";
         img.onload = () => {
             const c = document.createElement('canvas');
-            c.width = img.width;
-            c.height = img.height;
+            c.width = img.width; c.height = img.height;
             const cx = c.getContext('2d');
             cx.drawImage(img, 0, 0);
             
-            try {
-                const imgData = cx.getImageData(0, 0, c.width, c.height);
-                const data = imgData.data;
-                
-                // 读取左上角像素作为背景色的基准色
-                const baseR = data[0];
-                const baseG = data[1];
-                const baseB = data[2];
-                
-                for (let i = 0; i < data.length; i += 4) {
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
-                    
-                    // 计算当前像素与背景色的色差
-                    const diff = Math.abs(r - baseR) + Math.abs(g - baseG) + Math.abs(b - baseB);
-                    
-                    // 如果色差很小（颜色相近），直接变透明！
-                    // 同时提高亮度阈值作为兜底
-                    if (diff < 80 || (r + g + b) < 150) { 
-                        data[i + 3] = 0; 
-                    }
+            const imgData = cx.getImageData(0, 0, c.width, c.height);
+            const data = imgData.data;
+            
+            // 只要亮度总和小于 120（深黑、深暗色），统统变透明！
+            for (let i = 0; i < data.length; i += 4) {
+                if ((data[i] + data[i+1] + data[i+2]) < 120) { 
+                    data[i + 3] = 0; 
                 }
-                cx.putImageData(imgData, 0, 0);
-                resolve(c.toDataURL()); 
-            } catch (e) {
-                // 如果跨域拦截了像素读取，把错误提示打在左上角
-                if(statusEl) statusEl.textContent = '跨域读取失败: ' + e.message;
-                resolve(url); // 返回原图保底
             }
+            cx.putImageData(imgData, 0, 0);
+            resolve(c.toDataURL()); 
         };
-        img.onerror = () => resolve(url); 
-        img.src = url;
+        img.src = base64Str;
     });
 }
 
@@ -289,42 +269,25 @@ bindCtrl('shoot', ()=>{ if(state==='playing') player.isShooting=true; }, ()=>{ p
 document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'||e.key==='a')keys.left=true; if(e.key==='ArrowRight'||e.key==='d')keys.right=true; if(e.code==='Space'&&state==='playing'&&player.onGround){e.preventDefault();player.vy=-700;player.onGround=false;} if(e.key==='j'||e.key==='J'){if(state==='playing') player.isShooting=true;} });
 document.addEventListener('keyup', (e)=>{ if(e.key==='ArrowLeft'||e.key==='a')keys.left=false; if(e.key==='ArrowRight'||e.key==='d')keys.right=false; if(e.key==='j'||e.key==='J') player.isShooting=false; });
 
-async function generateAndProcessImage(prompt, isSprite = false) {
-    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_KEY}` },
-      body: JSON.stringify({ model: 'cogview-3-flash', prompt: prompt, size: '1024x1024' })
-    });
-    const data = await res.json();
-    if(!data.data || !data.data[0]) return null;
-    
-    const originalUrl = data.data[0].url;
-    if(isSprite) {
-        return await processImageRemoveBg(originalUrl);
-    }
-    return originalUrl;
-}
-
 async function generate() {
   const text = promptEl.value.trim() || '赛博朋克魂斗罗';
   document.getElementById('gen').disabled = true; 
   const mask = document.getElementById('loading-mask'), maskText = document.getElementById('loading-text');
-  mask.classList.add('show'); maskText.textContent = '主策正在构思机制...';
+  mask.classList.add('show'); maskText.textContent = '主策正在构思，云端渲染中（约10秒）...';
   
   try {
-    const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
+    // 向后端发起请求，把智谱 Key 传过去让后端代为画图转码
+    const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text, zhipuKey: ZHIPU_KEY }) });
     const data = await res.json();
+    
     if (data.error) throw new Error(data.error);
     config = data;
+
+    maskText.textContent = 'AI 正在剥离黑色背景...';
     
-    maskText.textContent = 'AI 正在绘制 场景壁纸...';
-    config.image_url = await generateAndProcessImage(`epic wide background, ${config.image_prompt}`, false);
-
-    maskText.textContent = 'AI 正在拆解 角色并抠图...';
-    config.player_url = await generateAndProcessImage(`game character sprite, full body, isolated on solid black background, glowing neon, ${config.image_prompt.split(',')[0]}`, true);
-
-    maskText.textContent = 'AI 正在生成 怪物并抠图...';
-    config.enemy_url = await generateAndProcessImage(`game enemy monster sprite, isolated on solid black background, glowing neon alien`, true);
+    // 拿到 Base64 后，前端进行无痛抠图
+    if (config.player_url) config.player_url = await processBase64RemoveBg(config.player_url);
+    if (config.enemy_url) config.enemy_url = await processBase64RemoveBg(config.enemy_url);
 
   } catch(e) { 
       alert('生成失败: ' + e.message); 
