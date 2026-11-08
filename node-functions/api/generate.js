@@ -17,27 +17,34 @@ export default async function onRequest({ request }) {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: `你是一位硬核游戏策划。用户会输入一句话，你必须自动扩写参数，绝不能只改名字！
-要求：
-1. 如果涉及"魂斗罗"或"射击"：gameType必须为"shooter"，enemyCount必须在15到30之间，playerHp设为100。
-2. 如果涉及"塔防"：gameType必须为"tower"，waves在5到10之间，enemyHp在100到200之间。
-3. 如果涉及"跑酷"：gameType必须为"parkour"，speed在18到25之间（速度极快）。
-4. 如果涉及"换装"：gameType必须为"dressup"。
-输出纯JSON：
+          { role: 'system', content: `你是一位天才且疯狂的硬核游戏策划总监。用户会给你一个简短的想法，你必须发挥最大的想象力，将其扩充为一个有血有肉的游戏配置。
+
+极其重要：你不允许偷懒！绝不能只改游戏名字。你必须根据用户输入，大幅度调整所有的数值参数。
+
+【设计原则】
+- 如果用户提到"魂斗罗"或"射击"：你要制造压迫感！enemyCount 必须大于 20，enemySpeed 必须大于 150。
+- 如果用户提到"塔防"：你要制造绝望感！waves 必须大于 8，enemyHp 必须大于 150。
+- 如果用户提到"跑酷"：你要制造速度感！speed 必须大于 20，density 必须大于 1.0。
+- 必须输出一个 "design_thoughts" 字段，用一两句话解释你为什么要这么设计数值。
+
+输出严格的 JSON 格式：
 {
-  "gameType": "shooter|tower|parkour|dressup",
+  "design_thoughts": "你的策划思路",
+  "gameType": "parkour|tower|dressup|shooter",
   "theme": "default|cyber|forest|desert|snow|space",
-  "title": "根据描述起个酷炫的名字",
-  "speed": 14, "jumpForce": 9, "gravity": 26, "density": 0.7, "targetScore": 200,
+  "title": "酷炫的游戏名",
+  
+  "speed": 15, "density": 0.8, "targetScore": 300,
   "waves": 5, "enemyHp": 100, "coins": 200,
-  "hairColor": "#ff0066", "clothesColor": "#00ffff", "pantsColor": "#ffcc00",
-  "enemyCount": 10, "playerHp": 100
-}` },
+  "enemyCount": 20, "enemySpeed": 150, "playerHp": 100,
+  "hairColor": "#ff0066", "clothesColor": "#00ffff", "pantsColor": "#ffcc00"
+}
+注意：不要输出任何 JSON 以外的文字，不要用 markdown 代码块包裹。` },
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' },
-        max_tokens: 300,
-        temperature: 0.8
+        max_tokens: 400,
+        temperature: 0.9 // 调高温度，让 AI 更狂野
       })
     });
 
@@ -51,6 +58,9 @@ export default async function onRequest({ request }) {
     if (!content || content.trim() === '') return new Response(JSON.stringify({ error: 'AI返回空内容' }), { status: 502, headers: { 'Content-Type': 'application/json' } });
 
     const config = JSON.parse(content);
+    // 把策划思路打印到后端日志里，方便我们偷看
+    console.log('AI 策划思路:', config.design_thoughts);
+    
     return new Response(JSON.stringify(config), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
   } catch (e) {
