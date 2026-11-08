@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v4.5</title>
+<title>AI游戏造梦器 v4.6</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
@@ -46,7 +46,7 @@
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
 <div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
-<div id="version-badge">v4.5 滤色去底版</div>
+<div id="version-badge">v4.6 修复射速版</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span></div>
@@ -72,7 +72,6 @@
 </div>
 
 <script type="module">
-// 🚨 测试用 Key
 const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
 
 const SVG_PLAYER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/></svg>';
@@ -104,13 +103,12 @@ document.getElementById('panelToggle').addEventListener('click', () => {
 });
 
 let keys = {left:false, right:false};
-let player = { x: 100, y: 0, vx: 0, vy: 0, w: 60, h: 80, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
+let player = { x: 100, y: 0, vx: 0, vy: 0, w: 80, h: 100, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
 let camX = 0, shootEnemies = [], shootBullets = [], particles = [], platforms = [], bossSpawned = false, killedCount = 0, spawnTimerShoot = 0;
 let initShootY = 0;
 
 function buildShooterScene() {
   resize2D(); initShootY = canvas2d.height - 120;
-  // 放大玩家和怪物尺寸，让贴图更好看
   player = { x: 100, y: initShootY - 80, vx: 0, vy: 0, w: 80, h: 100, hp: config.playerHp || 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
   camX = 0; shootEnemies = []; shootBullets = []; particles = [];
   spawnTimerShoot = 0; killedCount = 0; bossSpawned = false;
@@ -142,19 +140,18 @@ function updateShooter(dt) {
       ctx.fillRect(p.x, p.y, p.w, p.h);
       ctx.fillStyle = '#00ffcc'; 
       ctx.fillRect(p.x, p.y, p.w, 6);
-      ctx.strokeStyle = 'rgba(0, 255, 204, 0.1)'; ctx.lineWidth = 1;
-      for(let i=p.x; i<p.x+p.w; i+=40){ ctx.beginPath(); ctx.moveTo(i, p.y+6); ctx.lineTo(i, p.y+p.h); ctx.stroke(); }
   }
   
+  // 🌟 修复：主角坐标错误
   if (player.invincible <= 0 || Math.floor(Date.now() / 100) % 2 === 0) {
     ctx.save(); 
-    // 🌟 使用 Screen 滤色模式，专门去纯黑底！
     ctx.globalCompositeOperation = 'screen'; 
-    if (player.dir === -1) { ctx.translate(player.x, player.y); ctx.scale(-1, 1); 
-        if(playerImgObj.complete && playerImgObj.naturalWidth > 0) ctx.drawImage(playerImgObj, -player.w/2, 0, player.w, player.h); 
-        else ctx.drawImage(imgPlayer, -20, 0, 40, 60);
+    if (player.dir === -1) { 
+        ctx.translate(player.x, player.y + player.h/2); ctx.scale(-1, 1); 
+        if(playerImgObj.complete && playerImgObj.naturalWidth > 0) ctx.drawImage(playerImgObj, -player.w/2, -player.h/2, player.w, player.h); 
+        else ctx.drawImage(imgPlayer, -20, -30, 40, 60);
     } else { 
-        if(playerImgObj.complete && playerImgObj.naturalWidth > 0) ctx.drawImage(playerImgObj, -player.w/2, 0, player.w, player.h); 
+        if(playerImgObj.complete && playerImgObj.naturalWidth > 0) ctx.drawImage(playerImgObj, player.x - player.w/2, player.y, player.w, player.h); 
         else ctx.drawImage(imgPlayer, player.x - 20, player.y, 40, 60); 
     } 
     ctx.restore();
@@ -162,9 +159,11 @@ function updateShooter(dt) {
 
   if (player.isShooting && player.shootCd <= 0) {
     const gunX = player.x + player.dir * 30, gunY = player.y + 40;
-    let dmg = Math.max(15, Math.ceil((config.enemyHp || 30) / 3)); 
-    shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 800, vy: 0, dmg });
-    player.shootCd = 0.15;
+    // 🌟 修复：强制限制怪物最高血量为100，子弹伤害保底 20，射速 0.08 秒一发（爽快割草！）
+    let safeHp = Math.min(config.enemyHp || 30, 100);
+    let dmg = Math.max(20, Math.ceil(safeHp / 2)); 
+    shootBullets.push({ x: gunX, y: gunY, vx: player.dir * 1000, vy: 0, dmg });
+    player.shootCd = 0.08;
   }
   if (player.shootCd > 0) player.shootCd -= dt;
 
@@ -185,7 +184,6 @@ function updateShooter(dt) {
   for (let i = shootEnemies.length - 1; i >= 0; i--) {
     let en = shootEnemies[i]; en.x += en.speed * dt * en.dir;
     
-    // 🌟 使用 Screen 滤色模式
     if(enemyImgObj.complete && enemyImgObj.naturalWidth > 0){
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
@@ -196,13 +194,15 @@ function updateShooter(dt) {
     }
     ctx.fillStyle = '#ff0000'; ctx.fillRect(en.x, en.y - 10, en.w * (en.hp / en.maxHp), 4);
 
-    if (Math.abs(en.x - player.x) < 30 && Math.abs(en.y - player.y) < 50 && player.invincible <= 0) {
+    // 碰撞体积修正，现在子弹更容易打中
+    if (Math.abs(en.x - player.x) < 40 && Math.abs(en.y - player.y) < 60 && player.invincible <= 0) {
       player.hp -= 20; player.invincible = 1.5; spawnParticles(player.x, player.y, '#ff0000', 20);
       if (player.hp <= 0) { state = 'over'; showOverlay('💀 阵亡了！', `击杀数: ${killedCount}`); return; }
     }
     for (let j = shootBullets.length - 1; j >= 0; j--) {
       let b = shootBullets[j];
-      if (b.x > en.x && b.x < en.x + en.w && b.y > en.y && b.y < en.y + en.h) {
+      // 扩大命中范围
+      if (b.x > en.x - 30 && b.x < en.x + en.w + 30 && b.y > en.y - 30 && b.y < en.y + en.h + 30) {
         en.hp -= b.dmg; shootBullets.splice(j, 1); spawnParticles(b.x, b.y, '#ff0066', 5);
         if (en.hp <= 0) { shootEnemies.splice(i, 1); killedCount++; spawnParticles(en.x, en.y, '#ff0066', 15); break; }
       }
@@ -212,7 +212,7 @@ function updateShooter(dt) {
 
   if (killedCount >= targetEnemies && !bossSpawned) {
     bossSpawned = true;
-    shootEnemies.push({ x: camX + canvas2d.width - 150, y: initShootY - 150, w: 120, h: 120, hp: 500, maxHp: 500, speed: 60, type: 'boss', dir: -1 });
+    shootEnemies.push({ x: camX + canvas2d.width - 150, y: initShootY - 150, w: 150, h: 150, hp: 300, maxHp: 300, speed: 60, type: 'boss', dir: -1 });
   }
   if (bossSpawned && shootEnemies.length === 0) { state = 'win'; showOverlay('🎉 通关！', `你完成了《${config.title}》`); return; }
 
@@ -273,7 +273,6 @@ async function generate() {
     maskText.textContent = 'AI 正在绘制 场景壁纸...';
     config.image_url = await generateAndProcessImage(`epic wide background, ${config.image_prompt}`);
 
-    // 🌟 核心修改：强制让 AI 画纯黑底的发光立绘，然后用 Screen 模式去底！
     maskText.textContent = 'AI 正在拆解 角色立绘...';
     config.player_url = await generateAndProcessImage(`game character sprite, full body, isolated on solid black background, glowing neon, ${config.image_prompt.split(',')[0]}`);
 
