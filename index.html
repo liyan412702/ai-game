@@ -3,17 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v3.1</title>
+<title>AI游戏造梦器 v3.2</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
   #canvas3d, #canvas2d { position:absolute; top:0; left:0; width:100%; height:100%; }
   
-  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#00ffcc; background:rgba(0,255,204,0.15); border:1px solid #00ffcc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
+  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#ff00cc; background:rgba(255,0,204,0.15); border:1px solid #ff00cc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
   
   #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
+  
+  /* AI 策划思路显示框 */
+  #ai-thoughts { position:fixed; top:calc(120px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; font-style:italic; text-shadow:0 1px 2px #000; pointer-events:none; z-index:5; opacity:0.8; background:rgba(0,0,0,0.5); padding:6px; border-radius:6px; border-left:3px solid #00ffcc; display:none; }
+
   #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px;); }
   #history-panel { position:fixed; top:0; right:-100%; width:80%; max-width:300px; height:100%; background:rgba(15,15,25,0.95); z-index:20; transition:right 0.3s ease; padding:20px; overflow-y:auto; border-left:1px solid rgba(255,255,255,0.1); }
   #history-panel.show { right:0; }
@@ -54,13 +58,15 @@
 <canvas id="canvas3d"></canvas>
 <canvas id="canvas2d" style="display:none;"></canvas>
 
-<div id="version-badge">v3.1 导演剪辑版</div>
+<div id="version-badge">v3.2 深度学习版</div>
 
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
   <div id="status" style="margin-top:2px; color:#aab;">生成后开始</div>
 </div>
+
+<div id="ai-thoughts"></div>
 
 <button id="history-btn">📜 历史记录</button>
 <div id="history-panel">
@@ -85,7 +91,7 @@
   <textarea id="prompt" placeholder="输入你想玩的（如：魂斗罗 / 塔防 / 换装）"></textarea>
   <div class="row"><button id="gen">✨ 生成游戏</button></div>
   <div id="examples">
-    <button class="example" data-p="硬核魂斗罗">魂斗罗·射击</button>
+    <button class="example" data-p="魂斗罗">魂斗罗·射击</button>
     <button class="example" data-p="赛博朋克极速跑酷">赛博朋克·跑酷</button>
     <button class="example" data-p="地狱级塔防">2D·塔防</button>
     <button class="example" data-p="二次元换装">二次元·换装</button>
@@ -139,7 +145,7 @@ let config = {
 
 let state = 'ready';
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc'), ovBtn = document.getElementById('ovBtn');
-const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main');
+const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main'), aiThoughtsEl = document.getElementById('ai-thoughts');
 function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textContent = desc; overlay.classList.add('show'); }
 function hideOverlay() { overlay.classList.remove('show'); }
 ovBtn.addEventListener('click', () => { hideOverlay(); startGame(); });
@@ -278,7 +284,6 @@ function updateDressup() {
   if (statusEl) statusEl.textContent = `点击头部/身体/腿部换色`;
 }
 
-// ---- 魂斗罗射击 (接入新参数) ----
 let player = { x: 100, y: 0, vx: 0, vy: 0, w: 40, h: 60, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false, weaponLevel: 1 };
 let camX = 0;
 let shootEnemies = [], shootBullets = [], particles = [], chests = [];
@@ -371,12 +376,11 @@ function updateShooter(dt) {
     if (b.x > camX + canvas2d.width || b.x < camX - 100 || b.y > canvas2d.height) shootBullets.splice(i, 1);
   }
 
-  // 根据AI生成的敌人数量，动态调整刷怪率
   spawnTimerShoot -= dt;
   const targetEnemies = config.enemyCount || 10;
   if (spawnTimerShoot <= 0 && !bossSpawned) {
     let spawnX = camX + canvas2d.width + 100;
-    let spawnRate = Math.max(0.4, 2.5 - targetEnemies * 0.05); 
+    let spawnRate = Math.max(0.3, 2.0 - targetEnemies * 0.05); 
     if (spawnX < levelLength - 200) shootEnemies.push({ 
         x: spawnX, y: initShootY - 40, w: 40, h: 40, 
         hp: 30, speed: config.enemySpeed || 120, type: 'ground', dir: -1 
@@ -419,7 +423,7 @@ function updateShooter(dt) {
 
   if (killedCount >= targetEnemies && !bossSpawned) {
     bossSpawned = true;
-    let bossHp = 300 + targetEnemies * 10; // BOSS血量随小怪数量暴增
+    let bossHp = 300 + targetEnemies * 10; 
     shootEnemies.push({ x: camX + canvas2d.width - 100, y: initShootY - 120, w: 100, h: 100, hp: bossHp, speed: 50, type: 'boss', dir: -1 });
     if(statusEl) statusEl.textContent = '⚠️ 警告：史诗BOSS出现！';
   }
@@ -464,6 +468,13 @@ function startGame() {
   state = 'playing';
   if (statusEl) statusEl.textContent = '进行中 · ' + config.title;
   document.getElementById('hud-title').textContent = config.title;
+
+  // 显示 AI 的策划思路
+  if (config.design_thoughts) {
+      aiThoughtsEl.textContent = "💡 策划思路: " + config.design_thoughts;
+      aiThoughtsEl.style.display = 'block';
+      setTimeout(() => { aiThoughtsEl.style.display = 'none'; }, 6000); // 6秒后自动隐藏
+  }
 
   document.getElementById('move-controls').style.display = 'none';
   document.getElementById('action-controls').style.display = 'none';
@@ -565,14 +576,14 @@ function renderHistory() {
 
 async function generate() {
   const text = promptEl.value.trim() || '做一个默认的3D跑酷游戏';
-  genBtn.disabled = true; genBtn.textContent = 'AI构思中…';
+  genBtn.disabled = true; genBtn.textContent = 'AI深度思考中…';
   try {
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '生成失败');
     config = data; 
     
-    // 纯粹依靠 AI 的生成结果，不再强制保底！
+    // 去掉之前的保底，完全依靠 AI 的自主学习
     if (text.includes('塔防') || text.includes('防御')) config.gameType = 'tower';
     else if (text.includes('换装') || text.includes('穿衣') || text.includes('衣服') || text.includes('打扮')) config.gameType = 'dressup';
     else if (text.includes('射击') || text.includes('魂斗罗') || text.includes('枪') || text.includes('战斗')) config.gameType = 'shooter';
