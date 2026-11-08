@@ -3,14 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 - 魂斗罗终极版</title>
+<title>AI游戏造梦器 v3.0</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
   #canvas3d, #canvas2d { position:absolute; top:0; left:0; width:100%; height:100%; }
   
-  #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
+  /* 版本号标志 */
+  #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#4ea1ff; background:rgba(78,161,255,0.2); border:1px solid #4ea1ff; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
+  
+  #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
   #history-btn { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; z-index:10; backdrop-filter:blur(4px;); }
   #history-panel { position:fixed; top:0; right:-100%; width:80%; max-width:300px; height:100%; background:rgba(15,15,25,0.95); z-index:20; transition:right 0.3s ease; padding:20px; overflow-y:auto; border-left:1px solid rgba(255,255,255,0.1); }
@@ -52,6 +55,8 @@
 <canvas id="canvas3d"></canvas>
 <canvas id="canvas2d" style="display:none;"></canvas>
 
+<div id="version-badge">v3.0 策划版</div>
+
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span> / <span id="target">200</span></div>
@@ -78,11 +83,11 @@
 
 <div id="panel">
   <div id="panelToggle"></div>
-  <textarea id="prompt" placeholder="只需输入一个词（如：魂斗罗 / 赛博朋克 / 塔防），AI策划会帮你补全细节！"></textarea>
+  <textarea id="prompt" placeholder="输入你想玩的（如：魂斗罗 / 塔防 / 换装）"></textarea>
   <div class="row"><button id="gen">✨ 生成游戏</button></div>
   <div id="examples">
-    <button class="example" data-p="魂斗罗">魂斗罗·射击</button>
-    <button class="example" data-p="赛博朋克城市">赛博朋克·跑酷</button>
+    <button class="example" data-p="硬核魂斗罗">魂斗罗·射击</button>
+    <button class="example" data-p="赛博朋克">赛博朋克·跑酷</button>
     <button class="example" data-p="塔防游戏">2D·塔防</button>
     <button class="example" data-p="二次元换装">二次元·换装</button>
   </div>
@@ -139,9 +144,6 @@ function showOverlay(title, desc) { ovTitle.textContent = title; ovDesc.textCont
 function hideOverlay() { overlay.classList.remove('show'); }
 ovBtn.addEventListener('click', () => { hideOverlay(); startGame(); });
 
-// ==========================================
-// 暂停机制核心代码
-// ==========================================
 const panel = document.getElementById('panel');
 const promptEl = document.getElementById('prompt');
 document.getElementById('panelToggle').addEventListener('click', () => {
@@ -158,15 +160,11 @@ promptEl.addEventListener('focus', () => {
     if (state === 'playing') { state = 'paused'; if(statusEl) statusEl.textContent = '游戏已暂停（输入中）'; }
 });
 promptEl.addEventListener('blur', () => {
-    // 如果输入框失去焦点且面板收起，恢复游戏 (可选，这里为了安全，让用户主动关面板再恢复)
     if (state === 'paused' && panel.classList.contains('collapsed')) {
         state = 'playing'; if(statusEl) statusEl.textContent = '进行中 · ' + config.title;
     }
 });
 
-// ==========================================
-// 引擎一：3D 跑酷
-// ==========================================
 const canvas3d = document.getElementById('canvas3d');
 const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -231,14 +229,10 @@ function update3D(dt) {
   if (p3dScore >= (config.targetScore||200)) { state = 'win'; showOverlay('🎉 通关！', `你完成了《${config.title}》`); }
 }
 
-// ==========================================
-// 共用 Canvas 2D 引擎
-// ==========================================
 const canvas2d = document.getElementById('canvas2d');
 const ctx = canvas2d.getContext('2d');
 function resize2D() { canvas2d.width = window.innerWidth; canvas2d.height = window.innerHeight; }
 
-// ---- 塔防 ----
 let enemies2d = [], towers2d = [], bullets2d = [], coins2d = 0, baseHp2d = 100, wave2d = 1, spawnTimer2d = 0, spawnedCount2d = 0;
 function buildTowerScene() { resize2D(); coins2d = config.coins || 200; baseHp2d = 100; wave2d = 1; enemies2d = []; towers2d = []; bullets2d = []; spawnTimer2d = 0; spawnedCount2d = 0; }
 function updateTower(dt) {
@@ -272,7 +266,6 @@ function updateTower(dt) {
   if (statusEl) statusEl.textContent = `波次: ${wave2d}/${maxWaves} | 点击建塔(50金币)`;
 }
 
-// ---- 换装 ----
 let dressupColors = []; let dressupParts = { hair: 0, clothes: 0, pants: 0 };
 function buildDressupScene() { resize2D(); dressupColors = [config.hairColor || '#ff0066', config.clothesColor || '#00ffff', config.pantsColor || '#ffcc00', '#ffffff', '#ffaa00']; dressupParts = { hair: 0, clothes: 1, pants: 2 }; }
 function updateDressup() {
@@ -286,7 +279,7 @@ function updateDressup() {
   if (statusEl) statusEl.textContent = `点击头部/身体/腿部换色`;
 }
 
-// ---- 魂斗罗射击 ----
+// ---- 魂斗罗射击 (硬核升级版) ----
 let player = { x: 100, y: 0, vx: 0, vy: 0, w: 40, h: 60, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false, weaponLevel: 1 };
 let camX = 0;
 let shootEnemies = [], shootBullets = [], particles = [], chests = [];
@@ -334,9 +327,7 @@ function updateShooter(dt) {
   for (let p of platforms) {
     if (player.x + player.w/2 > p.x && player.x - player.w/2 < p.x + p.w) {
       if (player.y + player.h > p.y && player.y + player.h < p.y + p.h / 2) {
-        if (player.vy > 0) {
-          player.y = p.y - player.h; player.vy = 0; player.onGround = true;
-        }
+        if (player.vy > 0) { player.y = p.y - player.h; player.vy = 0; player.onGround = true; }
       }
     }
   }
@@ -384,8 +375,10 @@ function updateShooter(dt) {
   spawnTimerShoot -= dt;
   if (spawnTimerShoot <= 0 && !bossSpawned) {
     let spawnX = camX + canvas2d.width + 100;
+    // 根据AI设置的难度，增加刷怪率
+    let spawnRate = Math.max(0.5, 2.0 - (config.enemyCount || 10) * 0.05); 
     if (spawnX < levelLength - 200) shootEnemies.push({ x: spawnX, y: initShootY - 40, w: 40, h: 40, hp: 30, speed: 120, type: 'ground', dir: -1 });
-    spawnTimerShoot = 2.0;
+    spawnTimerShoot = spawnRate;
   }
 
   if (Math.random() < 0.005 && chests.length < 2 && !bossSpawned) chests.push({ x: camX + canvas2d.width, y: initShootY - 30, w: 30, h: 30 });
@@ -421,22 +414,23 @@ function updateShooter(dt) {
     ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, 4, 4); ctx.globalAlpha = 1;
   }
 
-  if (killedCount >= (config.enemyCount || 10) && !bossSpawned) {
+  // BOSS触发逻辑
+  const killTarget = config.enemyCount || 10;
+  if (killedCount >= killTarget && !bossSpawned) {
     bossSpawned = true;
     shootEnemies.push({ x: camX + canvas2d.width - 100, y: initShootY - 120, w: 100, h: 100, hp: 500, speed: 50, type: 'boss', dir: -1 });
+    if(statusEl) statusEl.textContent = '⚠️ 警告：BOSS出现！';
   }
   if (bossSpawned && shootEnemies.length === 0) { state = 'win'; showOverlay('🎉 消灭了BOSS！', `你拯救了世界！`); return; }
 
   ctx.restore();
 
-  if (hudMain) hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${player.hp} HP</span> | 击杀 ${killedCount}`;
-  if (statusEl) statusEl.textContent = `武器等级: ${player.weaponLevel} | 前方BOSS警告!`;
+  if (hudMain) hudMain.innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${player.hp} HP</span> | 击杀 ${killedCount}/${killTarget}`;
   
   if (player.invincible > 1.4) canvas2d.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
   else canvas2d.style.transform = `none`;
 }
 
-// 点击事件分发
 canvas2d.addEventListener('pointerdown', (e) => {
   if (state !== 'playing') return;
   if (config.gameType === 'tower' && coins2d >= 50) { coins2d -= 50; towers2d.push({ x: e.clientX + camX, y: e.clientY, range: 150, cooldown: 0 }); }
@@ -448,15 +442,10 @@ canvas2d.addEventListener('pointerdown', (e) => {
   }
 });
 
-// ==========================================
-// 主循环与场景切换
-// ==========================================
 let lastTime = performance.now();
 function animate(now) {
   requestAnimationFrame(animate);
   const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
-  
-  // 如果是暂停状态，仅保留渲染，不更新逻辑，防止游戏进度推进
   if (state === 'paused') return; 
   if (state !== 'playing') return;
 
@@ -499,7 +488,6 @@ function startGame() {
   }
 }
 
-// 键鼠绑定
 const keys = { left:false, right:false };
 function bindCtrl(id, startFn, endFn) {
     const el = document.getElementById(id);
@@ -542,7 +530,6 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); resize2D(); 
 });
 
-// 生成与历史记录
 const genBtn = document.getElementById('gen');
 const historyBtn = document.getElementById('history-btn'), historyPanel = document.getElementById('history-panel'), historyList = document.getElementById('history-list');
 historyBtn.addEventListener('click', () => { 
@@ -583,14 +570,20 @@ async function generate() {
     if (!res.ok) throw new Error(data.error || '生成失败');
     config = data; 
     
+    // 强制前端兜底：如果AI给的值太低，这里直接拉高，保证可玩性！
     if (text.includes('塔防') || text.includes('防御')) {
         config.gameType = 'tower';
+        if(config.waves < 5) config.waves = 5;
     } else if (text.includes('换装') || text.includes('穿衣') || text.includes('衣服') || text.includes('打扮')) {
         config.gameType = 'dressup';
     } else if (text.includes('射击') || text.includes('魂斗罗') || text.includes('枪') || text.includes('战斗')) {
         config.gameType = 'shooter';
+        // 确保怪物数量足够多
+        if(config.enemyCount < 15) config.enemyCount = 15; 
+        config.playerHp = 100;
     } else {
         config.gameType = 'parkour';
+        if(config.speed < 15) config.speed = 15; // 跑酷保底速度
     }
     if(!config.title) config.title = '自定义游戏';
     saveHistory(text, config);
