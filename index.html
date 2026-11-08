@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v4.3</title>
+<title>AI游戏造梦器 v4.4</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#000; font-family: system-ui, sans-serif; user-select:none; }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
-  #canvas2d { position:absolute; top:0; left:0; width:100%; height:100%; }
+  #canvas2d { position:relative; z-index:2; }
+  #game-bg { position:fixed; inset:0; background-size:cover; background-position:center; z-index:1; opacity:0.4; display:none; }
   #version-badge { position:fixed; top:calc(12px + env(safe-area-inset-top)); right:70px; color:#00ffcc; background:rgba(0,255,204,0.15); border:1px solid #00ffcc; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold; z-index:10; }
   #hud { position:fixed; top:calc(40px + env(safe-area-inset-top)); left:14px; color:#fff; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; line-height:1.5; z-index:5; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
@@ -43,8 +44,9 @@
 </head>
 <body>
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div></div>
+<div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
-<div id="version-badge">v4.3 前端直连版</div>
+<div id="version-badge">v4.4 资产拆解版</div>
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">AI造梦器</div>
   <div id="hud-main" style="margin-top:4px;">得分 <span class="big" id="score">0</span></div>
@@ -70,24 +72,23 @@
 </div>
 
 <script type="module">
-// ⚠️⚠️⚠️ 请在这里填入你的智谱 API Key ⚠️⚠️⚠️
+// 🚨 注意：此处已填入你泄露的 Key，仅供本次测试！测完请立刻去智谱后台删除它！
 const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
 
 const SVG_PLAYER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/></svg>';
 const imgPlayer = new Image(); imgPlayer.src = SVG_PLAYER;
+let playerImgObj = new Image(); 
+let enemyImgObj = new Image(); 
 
-let config = { gameType:'shooter', title:'游戏', enemyCount:15, enemyHp:30, enemySpeed:150, playerHp:100, design_thoughts:'', image_url:null };
+let config = { gameType:'shooter', title:'游戏', enemyCount:15, enemyHp:30, enemySpeed:150, playerHp:100, design_thoughts:'', image_url:null, player_url:null, enemy_url:null };
 let state = 'ready';
 const canvas2d = document.getElementById('canvas2d'), ctx = canvas2d.getContext('2d');
 const overlay = document.getElementById('overlay'), ovTitle = document.getElementById('ovTitle'), ovDesc = document.getElementById('ovDesc');
-const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main'), aiThoughtsEl = document.getElementById('ai-thoughts'), artBg = document.getElementById('art-bg');
+const statusEl = document.getElementById('status'), hudMain = document.getElementById('hud-main'), aiThoughtsEl = document.getElementById('ai-thoughts'), artBg = document.getElementById('art-bg'), gameBg = document.getElementById('game-bg');
 const panel = document.getElementById('panel'), promptEl = document.getElementById('prompt');
 
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 window.addEventListener('resize', resize2D);
-
-let bgImageObj = new Image();
-bgImageObj.crossOrigin = "Anonymous";
 
 function showOverlay(title, desc) { 
     ovTitle.textContent = title; ovDesc.textContent = desc; 
@@ -109,23 +110,20 @@ let initShootY = 0;
 
 function buildShooterScene() {
   resize2D(); initShootY = canvas2d.height - 120;
-  player = { x: 100, y: initShootY - 60, vx: 0, vy: 0, w: 30, h: 50, hp: config.playerHp || 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
+  player = { x: 100, y: initShootY - 60, vx: 0, vy: 0, w: 40, h: 50, hp: config.playerHp || 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
   camX = 0; shootEnemies = []; shootBullets = []; particles = [];
   spawnTimerShoot = 0; killedCount = 0; bossSpawned = false;
   platforms = [{ x: 0, y: initShootY, w: 1000, h: 200 },{ x: 1100, y: initShootY, w: 400, h: 200 },{ x: 1600, y: initShootY - 100, w: 300, h: 200 }];
-  if (config.image_url) bgImageObj.src = config.image_url;
+  
+  if (config.image_url) gameBg.style.backgroundImage = `url(${config.image_url})`;
+  if (config.player_url) playerImgObj.src = config.player_url;
+  if (config.enemy_url) enemyImgObj.src = config.enemy_url;
 }
 
 function spawnParticles(x, y, color, count) { for (let i = 0; i < count; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 400, vy: (Math.random() - 0.5) * 400, life: 1, color }); }
 
 function updateShooter(dt) {
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-  
-  if (config.image_url && bgImageObj.complete && bgImageObj.naturalWidth > 0) {
-      try { ctx.globalAlpha = 0.5; ctx.drawImage(bgImageObj, 0, 0, canvas2d.width, canvas2d.height); ctx.globalAlpha = 1.0; } catch(e) {}
-  } else {
-      ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
-  }
 
   const moveSpeed = 350;
   if (keys.left) { player.vx = -moveSpeed; player.dir = -1; } else if (keys.right) { player.vx = moveSpeed; player.dir = 1; } else { player.vx = 0; }
@@ -137,10 +135,27 @@ function updateShooter(dt) {
   if (player.invincible > 0) player.invincible -= dt;
 
   ctx.save(); ctx.translate(-camX, 0);
-  for (let p of platforms) { ctx.fillStyle = '#1a1a2e'; ctx.fillRect(p.x, p.y, p.w, p.h); ctx.fillStyle = '#00ffff'; ctx.fillRect(p.x, p.y, p.w, 2); }
+  
+  for (let p of platforms) {
+      ctx.fillStyle = '#0a1a15'; 
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.fillStyle = '#00ffcc'; 
+      ctx.fillRect(p.x, p.y, p.w, 6);
+      ctx.strokeStyle = 'rgba(0, 255, 204, 0.1)'; ctx.lineWidth = 1;
+      for(let i=p.x; i<p.x+p.w; i+=40){ ctx.beginPath(); ctx.moveTo(i, p.y+6); ctx.lineTo(i, p.y+p.h); ctx.stroke(); }
+  }
   
   if (player.invincible <= 0 || Math.floor(Date.now() / 100) % 2 === 0) {
-    ctx.save(); if (player.dir === -1) { ctx.translate(player.x, player.y); ctx.scale(-1, 1); ctx.drawImage(imgPlayer, -player.w/2, 0, player.w, player.h); } else { ctx.drawImage(imgPlayer, player.x - player.w/2, player.y, player.w, player.h); } ctx.restore();
+    ctx.save(); 
+    ctx.globalCompositeOperation = 'multiply'; 
+    if (player.dir === -1) { ctx.translate(player.x, player.y); ctx.scale(-1, 1); 
+        if(playerImgObj.complete && playerImgObj.naturalWidth > 0) ctx.drawImage(playerImgObj, -player.w, 0, player.w*2, player.h*1.5); 
+        else ctx.drawImage(imgPlayer, -player.w/2, 0, player.w, player.h);
+    } else { 
+        if(playerImgObj.complete && playerImgObj.naturalWidth > 0) ctx.drawImage(playerImgObj, 0, 0, player.w*2, player.h*1.5); 
+        else ctx.drawImage(imgPlayer, player.x - player.w/2, player.y, player.w, player.h); 
+    } 
+    ctx.restore();
   }
 
   if (player.isShooting && player.shootCd <= 0) {
@@ -167,7 +182,15 @@ function updateShooter(dt) {
 
   for (let i = shootEnemies.length - 1; i >= 0; i--) {
     let en = shootEnemies[i]; en.x += en.speed * dt * en.dir;
-    ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x, en.y, en.w, en.h); 
+    
+    if(enemyImgObj.complete && enemyImgObj.naturalWidth > 0){
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(enemyImgObj, en.x - 10, en.y - 20, 60, 60);
+        ctx.restore();
+    } else {
+        ctx.fillStyle = '#ff0066'; ctx.fillRect(en.x, en.y, en.w, en.h); 
+    }
     ctx.fillStyle = '#ff0000'; ctx.fillRect(en.x, en.y - 10, en.w * (en.hp / en.maxHp), 4);
 
     if (Math.abs(en.x - player.x) < 30 && Math.abs(en.y - player.y) < 50 && player.invincible <= 0) {
@@ -208,6 +231,8 @@ function startGame() {
       aiThoughtsEl.style.display = 'block'; 
       setTimeout(()=>aiThoughtsEl.style.display='none', 8000); 
   }
+  
+  gameBg.style.display = config.image_url ? 'block' : 'none';
   resize2D(); buildShooterScene(); 
 }
 
@@ -219,6 +244,17 @@ bindCtrl('shoot', ()=>{ if(state==='playing') player.isShooting=true; }, ()=>{ p
 document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'||e.key==='a')keys.left=true; if(e.key==='ArrowRight'||e.key==='d')keys.right=true; if(e.code==='Space'&&state==='playing'&&player.onGround){e.preventDefault();player.vy=-700;player.onGround=false;} if(e.key==='j'||e.key==='J'){if(state==='playing') player.isShooting=true;} });
 document.addEventListener('keyup', (e)=>{ if(e.key==='ArrowLeft'||e.key==='a')keys.left=false; if(e.key==='ArrowRight'||e.key==='d')keys.right=false; if(e.key==='j'||e.key==='J') player.isShooting=false; });
 
+async function generateAndProcessImage(prompt) {
+    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_KEY}` },
+      body: JSON.stringify({ model: 'cogview-3-flash', prompt: prompt, size: '1024x1024' })
+    });
+    const data = await res.json();
+    if(!data.data || !data.data[0]) return null;
+    return data.data[0].url;
+}
+
 async function generate() {
   const text = promptEl.value.trim() || '赛博朋克魂斗罗';
   document.getElementById('gen').disabled = true; 
@@ -226,33 +262,19 @@ async function generate() {
   mask.classList.add('show'); maskText.textContent = '主策正在构思机制...';
   
   try {
-    // 1. 问腾讯云后端要文字和提示词
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: text }) });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     config = data;
     
-    // 2. 前端直接拿着提示词去问智谱画师
-    maskText.textContent = '画师正在绘制中（大概需要8秒）...';
-    const zhipuRes = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
-      method: 'POST',
-      headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${ZHIPU_KEY}` // 这里用的是你填在前端的 Key
-      },
-      body: JSON.stringify({
-        model: 'cogview-3-flash',
-        prompt: config.image_prompt || 'epic game art',
-        size: '1024x1024'
-      })
-    });
-    
-    const zhipuData = await zhipuRes.json();
-    if (zhipuData.data && zhipuData.data[0] && zhipuData.data[0].url) {
-        config.image_url = zhipuData.data[0].url;
-    } else {
-        config.design_thoughts += " | 画师报错: 没拿到图";
-    }
+    maskText.textContent = 'AI 正在绘制 场景壁纸...';
+    config.image_url = await generateAndProcessImage(`epic wide background, ${config.image_prompt}`);
+
+    maskText.textContent = 'AI 正在拆解 角色立绘...';
+    config.player_url = await generateAndProcessImage(`game character sprite, full body, solid white background, isolated, ${config.image_prompt.split(',')[0]}`);
+
+    maskText.textContent = 'AI 正在生成 怪物资产...';
+    config.enemy_url = await generateAndProcessImage(`game enemy monster sprite, solid white background, isolated, neon alien`);
 
   } catch(e) { 
       alert('生成失败: ' + e.message); 
