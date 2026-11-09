@@ -1,14 +1,15 @@
 import { generateWorldConfig } from './ai-service.js';
 import { initEngine, stopGame, runGame } from './physics-engine.js';
 
-try { initEngine(); } catch(e) { alert("物理引擎加载失败：" + e.message); }
+try { initEngine(); } catch(e) { console.error("物理引擎加载失败：" + e.message); }
 
 let tempConfig = null;
 let currentCategory = 'shooter';
 
 window.openForm = function(type, title) {
     currentCategory = type;
-    document.getElementById('form-title').textContent = '定制 ' + title;
+    const formTitle = document.getElementById('form-title');
+    if(formTitle) formTitle.textContent = '定制 ' + title;
     switchScreen('form-screen');
 };
 
@@ -62,7 +63,9 @@ window.startPlay = function() {
     document.getElementById('controls').style.display = 'flex';
     document.getElementById('exit-btn').style.display = 'block';
     document.getElementById('hud').style.display = 'block';
-    document.getElementById('hud-title').textContent = tempConfig.title;
+    
+    const hudTitle = document.getElementById('hud-title');
+    if(hudTitle) hudTitle.textContent = tempConfig.title || 'AI造梦器';
     
     runGame(tempConfig);
 };
