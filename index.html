@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI造梦器 v8.3</title>
+<title>AI造梦器 v8.4</title>
 <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#050508; font-family: system-ui, sans-serif; user-select:none; color:#fff; }
-  #game-bg { position:fixed; inset:0; background-size:cover; background-position:center; z-index:1; opacity:0.6; display:none; }
+  #game-bg { position:fixed; inset:0; background:#0a0a1a center/cover no-repeat; z-index:1; display:none; opacity:0.6; pointer-events:none; }
   #canvas2d { position:relative; z-index:2; display:none; width:100%; height:100%; touch-action:none; }
   .screen { position:fixed; inset:0; z-index:10; overflow-y:auto; display:none; padding:24px; }
   .screen.active { display:block; }
@@ -30,13 +30,16 @@
   .row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .btn-main { width:100%; height:54px; border-radius:16px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000; cursor:pointer; margin-top:10px; }
   .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px; cursor:pointer; }
-  #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; font-size:16px; text-shadow:0 1px 3px #000; z-index:5; display:none; }
-  #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; display:none; }
+  #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; font-size:16px; text-shadow:0 1px 3px #000; z-index:5; display:none; pointer-events:none; }
+  
+  /* 控制按钮区升级 */
+  #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; display:none; pointer-events:none; }
   .pad { display:flex; gap:12px; pointer-events:auto; align-items:center;}
-  .btn-ctrl { border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; }
+  .btn-ctrl { border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; touch-action:none; }
   .btn-ctrl:active { background:rgba(78,161,255,.6); }
-  #btn-left, #btn-right { width:80px; height:80px; font-size:30px; }
-  #btn-jump { width:90px; height:90px; font-size:18px; background:rgba(0,255,204,0.2); border-color:#00ffcc; }
+  #btn-left, #btn-right { width:70px; height:70px; font-size:30px; }
+  #btn-up { width:70px; height:70px; font-size:30px; margin-left:20px; }
+  #btn-jump { width:80px; height:80px; font-size:18px; background:rgba(0,255,204,0.2); border-color:#00ffcc; }
   #btn-shoot { width:80px; height:80px; font-size:18px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
   #loading-mask { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; backdrop-filter:blur(5px); }
   #loading-mask.show { display:flex; }
@@ -86,17 +89,23 @@
 <div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
 
-<!-- 🌟 HUD 拆成两个稳定节点，引擎只更新 #hud-enemy 的 textContent，不再重写 innerHTML -->
 <div id="hud">
   <div id="hud-title" style="font-weight:700; margin-bottom:4px;">AI造梦器</div>
-  <div id="hud-enemy" style="color:#00ffcc;">敌人剩余: 0</div>
 </div>
 
 <button onclick="backToMenu()" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; z-index:10; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:6px 12px; border-radius:20px; font-size:12px; display:none;" id="exit-btn">退出</button>
 
+<!-- 增加了 向上箭头 btn-up -->
 <div id="controls">
-  <div class="pad"><div class="btn-ctrl" id="btn-left">←</div><div class="btn-ctrl" id="btn-right">→</div></div>
-  <div class="pad"><div class="btn-ctrl" id="btn-shoot">射击</div><div class="btn-ctrl" id="btn-jump">跳跃</div></div>
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-left">←</div>
+    <div class="btn-ctrl" id="btn-right">→</div>
+    <div class="btn-ctrl" id="btn-up">↑</div>
+  </div>
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-shoot">射击</div>
+    <div class="btn-ctrl" id="btn-jump">跳跃</div>
+  </div>
 </div>
 
 <div id="loading-mask"><div class="spinner"></div><div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策推演中...</div></div>
