@@ -11,26 +11,29 @@ export default async function onRequest({ request }) {
         messages: [
           { 
             role: 'system', 
-            content: `你是一位“游戏沙盒架构师”。用户会提出需求，你不必写代码，而是根据需求设计一个物理世界的实体布局。
-必须输出纯JSON，格式如下：
+            content: `你是一位顶级游戏总监（像宫本茂一样）。用户输入一句话，你必须设计出一个完整的“游戏机制”，而不仅仅是摆放积木。
+            
+必须输出纯 JSON，格式如下：
 {
   "title": "游戏名称",
-  "design_thoughts": "一句话描述你的物理世界设计理念",
-  "bg_prompt": "画一张宏大背景的英文提示词",
-  "player_prompt": "画一个主角立绘的英文提示词(纯黑底)",
-  "enemy_prompt": "画一个怪物立绘的英文提示词(纯黑底)",
+  "design_thoughts": "作为总监，一句话说明你的玩法设计核心",
+  "bg_prompt": "画宏大背景的英文提示词",
+  "player_prompt": "画主角立绘的英文提示词(纯黑底)",
+  "enemy_prompt": "画怪物立绘的英文提示词(纯黑底)",
+  "game_rules": {
+    "win_condition": "kill_all", // 固定为杀光怪物通关
+    "enemy_behavior": "chase",   // 固定为怪物追击玩家
+    "player_hp": 100,
+    "enemy_hp": 30
+  },
   "entities": [
-    // 必须包含地面。x,y是坐标，w,h是宽高。
     {"type": "ground", "x": 400, "y": 580, "w": 800, "h": 40},
     {"type": "player", "x": 100, "y": 450, "w": 40, "h": 60},
-    // 根据用户需求生成怪物或障碍物
     {"type": "enemy", "x": 600, "y": 450, "w": 40, "h": 40},
-    {"type": "enemy", "x": 700, "y": 450, "w": 40, "h": 40},
-    // 如果用户要塔防，生成 "tower"；要跑酷，生成 "obstacle"
-    {"type": "obstacle", "x": 300, "y": 500, "w": 50, "h": 80}
+    {"type": "enemy", "x": 700, "y": 450, "w": 40, "h": 40}
   ]
 }
-要求：坐标在 0-800 宽度，0-600 高度之间。玩家必须出生在地面附近。严格只输出 JSON！` 
+请确保地面的 y 在 580 左右，玩家和怪物出生在 400-500 的空中。不要输出多余文字！` 
           },
           { role: 'user', content: prompt }
         ],
@@ -39,8 +42,7 @@ export default async function onRequest({ request }) {
     });
 
     const data = await response.json();
-    const config = JSON.parse(data.choices[0].message.content);
-    return new Response(JSON.stringify(config), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(data.choices[0].message.content, { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
