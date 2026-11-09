@@ -4,12 +4,19 @@ let engine, world;
 let entities = []; 
 let bullets = []; 
 let state = 'menu';
-let playerImgObj = new Image();
-let enemyImgObj = new Image();
 let keys = { left: false, right: false, shoot: false };
 let canvas, ctx;
 let shootTimer = 0;
 let currentRules = {};
+let theme = 'cyber';
+let camX = 0;
+
+// 定义三种主题的霓虹色
+const THEME_COLORS = {
+    cyber: { player: '#00ffff', enemy: '#ff0066', platform: '#4ea1ff', coin: '#ffcc00', bg: '#0a0a1a' },
+    forest: { player: '#00ff66', enemy: '#ff3300', platform: '#006622', coin: '#ffff00', bg: '#051005' },
+    space: { player: '#ffffff', enemy: '#ff00ff', platform: '#333344', coin: '#00ffff', bg: '#000000' }
+};
 
 export function initEngine() {
     canvas = document.getElementById('canvas2d');
@@ -26,47 +33,46 @@ export function stopGame() {
     bullets = []; entities = [];
 }
 
-export function runGame(config, playerBase64, enemyBase64) {
+export function runGame(config) {
     state = 'playing';
     engine = Engine.create();
     world = engine.world;
     window.world = world;
-    engine.gravity.y = 1; 
+    theme = config.theme || 'cyber';
+    engine.gravity.y = config.gravity || 1; 
+    
+    // 设置背景
+    document.getElementById('game-bg').style.background = THEME_COLORS[theme].bg;
+    
     entities = []; bullets = [];
-    
-    currentRules = config.game_rules || {};
-    
-    if (playerBase64) playerImgObj.src = playerBase64;
-    if (enemyBase64) enemyImgObj.src = enemyBase64;
+    camX = 0;
 
-    const floorY = canvas.height - 80;
-    
-    // 地面
-    let groundBody = Bodies.rectangle(canvas.width / 2, floorY + 20, canvas.width, 40, { isStatic: true, render: { fillStyle: 'rgba(0, 255, 204, 0.8)' } });
-    World.add(world, groundBody);
-    entities.push({ type: 'ground', body: groundBody, w: canvas.width, h: 40 });
+    // 🌟 核心：完全遍历 AI 给的实体蓝图，不写死任何逻辑！
+    config.entities.forEach(e => {
+        let body;
+        let color = THEME_COLORS[theme].platform;
+        
+        if (e.type === 'player') color = THEME_COLORS[theme].player;
+        if (e.type.includes('enemy')) color = THEME_COLORS[theme].enemy;
+        if (e.type === 'coin') color = THEME_COLORS[theme].coin;
 
-    // 主角
-    let playerBody = Bodies.rectangle(100, floorY - 100, 40, 60, { friction: 0, frictionAir: 0.05, restitution: 0, inertia: Infinity, render: { fillStyle: '#4ea1ff' }, label: 'player' });
-    World.add(world, playerBody);
-    entities.push({ type: 'player', body: playerBody, w: 40, h: 60 });
+        if (e.type === 'platform') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { isStatic: true });
+        else if (e.type === 'coin') body = Bodies.circle(e.x, e.y, e.w/2, { isStatic: true, isSensor: true });
+        else if (e.type === 'player') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0, frictionAir: 0.05, inertia: Infinity });
+        else body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0, inertia: Infinity });
 
-    // 怪物
-    let enemyCount = config.user_enemyCount || 10;
-    for (let i = 0; i < enemyCount; i++) {
-        let ex = canvas.width - 50 - (i % 5) * 60; 
-        let ey = floorY - 80 - Math.floor(i / 5) * 60;
-        let enemyBody = Bodies.rectangle(ex, ey, 40, 40, { friction: 0, inertia: Infinity, render: { fillStyle: '#ff0000' }, label: 'enemy' });
-        World.add(world, enemyBody);
-        entities.push({ type: 'enemy', body: enemyBody, w: 40, h: 40, hp: currentRules.enemy_hp || 30 });
-    }
+        if (body) {
+            World.add(world, body);
+            entities.push({ type: e.type, body: body, w: e.w, h: e.h, color: color, hp: 30 });
+        }
+    });
 
     requestAnimationFrame(loop);
 }
 
 function doJump() {
     const p = entities.find(e => e.type === 'player');
-    if (p && Math.abs(p.body.velocity.y) < 2) Body.setVelocity(p.body, { x: p.body.velocity.x, y: currentRules.player_jump || -14 });
+    if (p && Math.abs(p.body.velocity.y) < 2) Body.setVelocity(p.body, { x: p.body.velocity.x, y: -14 });
 }
 
 let lastTime = 0;
@@ -76,33 +82,36 @@ function loop(now) {
         const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
         
         const p = entities.find(e => e.type === 'player');
-        const enemies = entities.filter(e => e.type === 'enemy');
+        const enemies = entities.filter(e => e.type.includes('enemy'));
 
         if (p) {
+            // 玩家移动
             let vx = 0;
-            if (keys.left) vx = -(currentRules.player_speed || 6);
-            if (keys.right) vx = currentRules.player_speed || 6;
+            if (keys.left) vx = -6;
+            if (keys.right) vx = 6;
             Body.setVelocity(p.body, { x: vx, y: p.body.velocity.y });
 
+            // 玩家射击（如果用户想射击的话，任何时候都能开火）
             shootTimer -= dt;
             if (keys.shoot && shootTimer <= 0) {
-                let b = Bodies.circle(p.body.position.x + 20, p.body.position.y, 6, { isStatic: false, render: { fillStyle: '#ffff00' }, label: 'bullet' });
+                let b = Bodies.circle(p.body.position.x, p.body.position.y, 6, { isStatic: false, isSensor: true });
                 Body.setVelocity(b, { x: 15, y: 0 }); 
                 World.add(world, b); bullets.push(b);
                 shootTimer = 0.15;
             }
 
+            // 怪物 AI 行为解析
             enemies.forEach(en => {
                 let dir = p.body.position.x > en.body.position.x ? 1 : -1;
-                if (currentRules.enemy_behavior === 'fly') {
-                    Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 5 }); 
+                if (en.type === 'enemy_fly') {
+                    Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 4 }); 
                 } else {
                     Body.setVelocity(en.body, { x: dir * 3, y: en.body.velocity.y }); 
                 }
             });
         }
 
-        // 子弹打怪物
+        // 子弹碰撞
         for (let i = bullets.length - 1; i >= 0; i--) {
             let b = bullets[i];
             for (let j = enemies.length - 1; j >= 0; j--) {
@@ -116,39 +125,60 @@ function loop(now) {
             }
         }
 
+        // 胜负判定
         if (enemies.length === 0) {
             state = 'menu';
-            alert('🎉 恭喜通关！');
+            alert('🎉 世界已被净化！通关！');
             document.getElementById('exit-btn').click();
             return;
         }
 
         let hud = document.getElementById('hud');
-        if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title')?.textContent || '游戏'}</div><div style="color:#00ffcc;">敌人剩余: ${enemies.length}</div>`;
+        if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title')?.textContent || '游戏'}</div><div style="color:${THEME_COLORS[theme].player};">敌人剩余: ${enemies.length}</div>`;
 
         Engine.update(engine, dt * 1000);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
+        // 相机跟随
+        if (p && p.body.position.x > canvas.width / 2) {
+            camX = p.body.position.x - canvas.width / 2;
+        } else {
+            camX = 0;
+        }
+
+        // 🌟 画发光霓虹实体，纯代码，无黑边！
+        ctx.save();
+        ctx.translate(-camX, 0);
+
         entities.forEach(e => {
             ctx.save();
             ctx.translate(e.body.position.x, e.body.position.y);
+            ctx.rotate(e.body.angle);
             
-            if (e.type === 'player' && playerImgObj.complete) {
-                ctx.globalCompositeOperation = 'screen'; // 滤色去黑底
-                ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
-            } else if (e.type === 'enemy' && enemyImgObj.complete) {
-                ctx.globalCompositeOperation = 'screen';
-                ctx.drawImage(enemyImgObj, -e.w/2, -e.h/2, e.w, e.h);
+            // 发光效果
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = e.color;
+            ctx.fillStyle = e.color;
+            
+            // 绘制形状
+            if (e.type === 'coin') {
+                ctx.beginPath(); ctx.arc(0, 0, e.w/2, 0, Math.PI * 2); ctx.fill();
             } else {
-                ctx.fillStyle = e.body.render.fillStyle;
                 ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
+                // 加个内边框增加立体感
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                ctx.strokeRect(-e.w/2, -e.h/2, e.w, e.h);
             }
             ctx.restore();
         });
 
+        // 画子弹
+        ctx.shadowBlur = 10; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffff00';
         bullets.forEach(b => {
-            ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
         });
+
+        ctx.restore();
     } catch (e) { console.error(e); }
     
     requestAnimationFrame(loop);
