@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI造梦器 v8.4</title>
+<title>AI造梦器 v8.5</title>
 <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -32,15 +32,20 @@
   .history-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px; cursor:pointer; }
   #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; font-size:16px; text-shadow:0 1px 3px #000; z-index:5; display:none; pointer-events:none; }
   
-  /* 控制按钮区升级 */
-  #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; display:none; pointer-events:none; }
-  .pad { display:flex; gap:12px; pointer-events:auto; align-items:center;}
+  /* 手机端控制区布局重构 */
+  #controls { position:fixed; left:0; right:0; bottom:calc(15px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; display:none; pointer-events:none; }
+  .pad-left { display:flex; gap:16px; pointer-events:auto; align-items:center;}
+  .pad-right { display:flex; gap:12px; pointer-events:auto; align-items:flex-end;}
+  
   .btn-ctrl { border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; touch-action:none; }
   .btn-ctrl:active { background:rgba(78,161,255,.6); }
-  #btn-left, #btn-right { width:70px; height:70px; font-size:30px; }
-  #btn-up { width:70px; height:70px; font-size:30px; margin-left:20px; }
-  #btn-jump { width:80px; height:80px; font-size:18px; background:rgba(0,255,204,0.2); border-color:#00ffcc; }
-  #btn-shoot { width:80px; height:80px; font-size:18px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
+  
+  #btn-left, #btn-right { width:75px; height:75px; font-size:32px; }
+  #btn-jump { width:75px; height:75px; font-size:18px; background:rgba(0,255,204,0.2); border-color:#00ffcc; }
+  #btn-shoot { width:85px; height:85px; font-size:20px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
+  /* 向上瞄准键变小，放在射击上方 */
+  #btn-up { width:55px; height:55px; font-size:24px; background:rgba(255,255,255,0.15); margin-bottom:10px; }
+
   #loading-mask { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; backdrop-filter:blur(5px); }
   #loading-mask.show { display:flex; }
   .spinner { width:50px; height:50px; border:4px solid rgba(255,255,255,0.1); border-top-color:#00ffcc; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
@@ -95,16 +100,16 @@
 
 <button onclick="backToMenu()" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; z-index:10; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:6px 12px; border-radius:20px; font-size:12px; display:none;" id="exit-btn">退出</button>
 
-<!-- 增加了 向上箭头 btn-up -->
+<!-- 左侧移动，右侧动作（向上独立） -->
 <div id="controls">
-  <div class="pad">
+  <div class="pad-left">
     <div class="btn-ctrl" id="btn-left">←</div>
     <div class="btn-ctrl" id="btn-right">→</div>
-    <div class="btn-ctrl" id="btn-up">↑</div>
   </div>
-  <div class="pad">
-    <div class="btn-ctrl" id="btn-shoot">射击</div>
+  <div class="pad-right">
+    <div class="btn-ctrl" id="btn-up">↑</div>
     <div class="btn-ctrl" id="btn-jump">跳跃</div>
+    <div class="btn-ctrl" id="btn-shoot">射击</div>
   </div>
 </div>
 
