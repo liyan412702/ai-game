@@ -45,6 +45,18 @@ export function runGame(config) {
     entities = []; bullets = [];
     camX = 0;
 
+    // 🌟 核心修复：获取当前屏幕的绝对底部
+    const floorY = canvas.height - 50;
+
+    // 🌟 核心修复 1：管 AI 给没给地面，我们强制在屏幕底部铺一层“隐形保护网”
+    let secureGround = Bodies.rectangle(canvas.width / 2, floorY + 30, canvas.width * 3, 60, { isStatic: true });
+    World.add(world, secureGround);
+    entities.push({ type: 'platform', body: secureGround, w: canvas.width * 3, h: 60, color: THEME_COLORS[theme].platform });
+
+    let playerSpawned = false;
+    let enemySpawnCount = 0;
+
+    // 🌟 核心修复 2：强制纠正 AI 给的出生点
     config.entities.forEach(e => {
         let body;
         let color = THEME_COLORS[theme].platform;
@@ -53,16 +65,58 @@ export function runGame(config) {
         if (e.type.includes('enemy')) color = THEME_COLORS[theme].enemy;
         if (e.type === 'coin') color = THEME_COLORS[theme].coin;
 
-        if (e.type === 'platform') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { isStatic: true });
-        else if (e.type === 'coin') body = Bodies.circle(e.x, e.y, e.w/2, { isStatic: true, isSensor: true });
-        else if (e.type === 'player') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0, frictionAir: 0.05, inertia: Infinity });
-        else body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0, inertia: Infinity });
+        // 如果 AI 生成了地面，我们画出来当装饰，但不参与物理（因为有保护网了）
+        if (e.type === 'platform') {
+            // 防止 AI 给的地面太低，强制拉到屏幕内
+            let safeY = Math.min(e.y, floorY); 
+            body = Bodies.rectangle(e.x, safeY, e.w, e.h, { isStatic: true });
+        }
+        else if (e.type === 'coin') {
+            let safeY = Math.min(e.y, floorY - 50);
+            body = Bodies.circle(e.x, safeY, e.w/2, { isStatic: true, isSensor: true });
+        }
+        else if (e.type === 'player') {
+            if (!playerSpawned) {
+                // 无视 AI 坐标，主角强制出生在左侧半空
+                body = Bodies.rectangle(100, floorY - 100, 40, 60, { friction: 0, frictionAir: 0.05, inertia: Infinity });
+                playerSpawned = true;
+            }
+        }
+        else if (e.type.includes('enemy')) {
+            // 无视 AI 坐标，怪物强制依次出生在右侧半空
+            let ex = canvas.width - 100 - (enemySpawnCount * 60);
+            let ey = floorY - 100 - (Math.random() * 50);
+            body = Bodies.rectangle(ex, ey, 40, 40, { friction: 0, inertia: Infinity });
+            enemySpawnCount++;
+        }
+        else {
+            let safeY = Math.min(e.y, floorY - 20);
+            body = Bodies.rectangle(e.x, safeY, e.w, e.h, { friction: 0, inertia: Infinity });
+        }
 
         if (body) {
             World.add(world, body);
             entities.push({ type: e.type, body: body, w: e.w, h: e.h, color: color, hp: 30 });
         }
     });
+
+    // 如果 AI 忘了给主角，我们强制补一个
+    if (!playerSpawned) {
+        let pBody = Bodies.rectangle(100, floorY - 100, 40, 60, { friction: 0, frictionAir: 0.05, inertia: Infinity });
+        World.add(world, pBody);
+        entities.push({ type: 'player', body: pBody, w: 40, h: 60, color: THEME_COLORS[theme].player });
+    }
+
+    // 如果 AI 忘了给怪物（或者给的怪物被过滤了），根据用户要求的数量补齐
+    let userReqEnemies = config.user_enemyCount || 10;
+    while (enemySpawnCount < userReqEnemies) {
+        let ex = canvas.width - 100 - (enemySpawnCount * 60) % (canvas.width - 200);
+        let ey = floorY - 100 - (Math.random() * 50);
+        let eBody = Bodies.rectangle(ex, ey, 40, 40, { friction: 0, inertia: Infinity });
+        World.add(world, eBody);
+        entities.push({ type: 'enemy_chase', body: eBody, w: 40, h: 40, color: THEME_COLORS[theme].enemy, hp: 30 });
+        enemySpawnCount++;
+    }
 
     lastTime = performance.now();
     requestAnimationFrame(loop);
@@ -122,16 +176,22 @@ function loop(now) {
         if (enemies.length === 0) {
             state = 'menu';
             alert('🎉 世界已被净化！通关！');
-            document.getElementById('exit-btn').click();
+            const exitBtn = document.getElementById('exit-btn');
+            if(exitBtn) exitBtn.click();
             return;
         }
 
         let hud = document.getElementById('hud');
-        if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title')?.textContent || '游戏'}</div><div style="color:${THEME_COLORS[theme].player};">敌人剩余: ${enemies.length}</div>`;
+        if(hud) {
+            let titleEl = document.getElementById('hud-title');
+            let titleStr = titleEl ? titleEl.textContent : '游戏';
+            hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${titleStr}</div><div style="color:${THEME_COLORS[theme].player};">敌人剩余: ${enemies.length}</div>`;
+        }
 
         Engine.update(engine, dt * 1000);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
+        // 相机居中跟随
         if (p && p.body.position.x > canvas.width / 2) camX = p.body.position.x - canvas.width / 2;
         else camX = 0;
 
