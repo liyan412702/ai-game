@@ -1,7 +1,12 @@
 import { generateWorldConfig, requestZhipuImage, processImageRemoveBg } from './ai-service.js';
 import { initEngine, stopGame, runGame } from './physics-engine.js';
 
-initEngine();
+// 核心防御：用 try-catch 包裹初始化
+try {
+    initEngine();
+} catch(e) {
+    alert("物理引擎加载失败，请检查网络或刷新重试：" + e.message);
+}
 
 let currentCategory = 'shooter';
 let tempConfig = null;
@@ -16,7 +21,7 @@ window.openForm = function(type, title) {
 
 window.backToMenu = function() {
     switchScreen('menu-screen');
-    stopGame();
+    try { stopGame(); } catch(e) {}
     document.getElementById('canvas2d').style.display = 'none';
     document.getElementById('game-bg').style.display = 'none';
     document.getElementById('controls').style.display = 'none';
@@ -34,8 +39,6 @@ window.generateGame = async function() {
     const enemyCount = document.getElementById('form-enemyCount').value;
     const enemyHp = document.getElementById('form-enemyHp').value;
     const story = document.getElementById('form-story').value;
-    
-    // 把用户的参数拼进 prompt 告诉 AI
     const prompt = `游戏分类：${currentCategory}。主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。剧情细节：${story}`;
 
     switchScreen(null);
@@ -44,29 +47,25 @@ window.generateGame = async function() {
 
     try {
         tempConfig = await generateWorldConfig(prompt);
-        // 强制注入用户设定的数值，覆盖 AI 的懒癌
         tempConfig.user_enemyCount = parseInt(enemyCount) || 10;
+        if(!tempConfig.game_rules) tempConfig.game_rules = {};
         tempConfig.game_rules.enemy_hp = parseInt(enemyHp) || 30;
 
         document.getElementById('loading-text').textContent = 'AI 绘制背景中...';
         let bgUrl = await requestZhipuImage(tempConfig.bg_prompt);
         if (bgUrl) document.getElementById('preview-img').src = bgUrl;
-        
-        // 临时存一下背景图
         document.getElementById('game-bg').style.backgroundImage = `url(${bgUrl})`;
 
-        document.getElementById('loading-text').textContent = 'AI 绘制角色并抠图...';
+        document.getElementById('loading-text').textContent = 'AI 绘制角色...';
         let pUrl = await requestZhipuImage(tempConfig.player_prompt);
         tempPlayerBase64 = await processImageRemoveBg(pUrl);
         
         let eUrl = await requestZhipuImage(tempConfig.enemy_prompt);
         tempEnemyBase64 = await processImageRemoveBg(eUrl);
 
-        // 展示预览页
         document.getElementById('preview-thoughts').innerHTML = "💡 主策推演: " + tempConfig.design_thoughts;
         switchScreen('preview-screen');
         
-        // 保存到历史记录
         saveHistory(prompt, tempConfig);
 
     } catch(e) {
@@ -85,14 +84,11 @@ window.startPlay = function() {
     document.getElementById('exit-btn').style.display = 'block';
     document.getElementById('hud').style.display = 'block';
     document.getElementById('hud-title').textContent = tempConfig.title;
-    
     runGame(tempConfig, tempPlayerBase64, tempEnemyBase64);
 };
 
-// ================= 历史记录功能 =================
 function saveHistory(prompt, config) {
     let history = JSON.parse(localStorage.getItem('game_history') || '[]');
-    // 只存最近 10 个
     history.unshift({ prompt, config, time: new Date().toLocaleString() });
     if (history.length > 10) history.pop();
     localStorage.setItem('game_history', JSON.stringify(history));
@@ -108,7 +104,6 @@ window.showHistory = function() {
             <div class="history-item" onclick="loadHistory(${idx})">
                 <div style="font-weight:700; color:#00ffcc;">${item.config.title}</div>
                 <div style="font-size:12px; color:#aaa; margin-top:4px;">${item.prompt}</div>
-                <div style="font-size:10px; color:#666; margin-top:4px;">${item.time}</div>
             </div>
         `).join('');
     }
@@ -119,13 +114,9 @@ window.loadHistory = function(idx) {
     let history = JSON.parse(localStorage.getItem('game_history') || '[]');
     const item = history[idx];
     if(!item) return;
-    
-    // 这里为了简化，直接重开他当时的参数
-    document.getElementById('form-theme').value = "重新生成的"; 
+    document.getElementById('form-theme').value = "重新生成"; 
     document.getElementById('form-enemyCount').value = item.config.user_enemyCount || 10;
     document.getElementById('form-enemyHp').value = item.config.game_rules.enemy_hp || 30;
     document.getElementById('form-story').value = item.prompt;
-    
-    // 重新生成一次，保证图片缓存不丢
     generateGame();
 };
