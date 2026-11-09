@@ -4,13 +4,14 @@ let engine, world, canvas, ctx;
 let state = 'menu';
 let cameraX = 0, cameraY = 0;
 let player = null, platforms = [], enemies = [];
-let bullets = []; // 纯逻辑子弹，脱离物理引擎
+let bullets = []; 
 let playerImgObj = new Image(), enemyImgObj = new Image();
 let currentConfig = null;
 let keys = { left: false, right: false, up: false, shoot: false };
 let shootTimer = 0;
 let lastTime = 0;
 let invincibleTimer = 0;
+let jumpCount = 0; // 记录跳跃次数（用于二段跳）
 
 export function initEngine() {
   canvas = document.getElementById('canvas2d');
@@ -39,13 +40,15 @@ export function runGame(config, pBase64, eBase64) {
   engine = Engine.create();
   world = engine.world;
   currentConfig = config;
-  engine.gravity.y = config.map?.gravity || 1;
+  
+  // 锁定重力，防止 AI 瞎调导致手感稀烂
+  engine.gravity.y = 1; 
 
   playerImgObj = new Image(); if (pBase64) playerImgObj.src = pBase64;
   enemyImgObj = new Image(); if (eBase64) enemyImgObj.src = eBase64;
 
   platforms = []; enemies = []; bullets = [];
-  cameraX = 0; cameraY = 0; shootTimer = 0; invincibleTimer = 0; lastTime = 0;
+  cameraX = 0; cameraY = 0; shootTimer = 0; invincibleTimer = 0; lastTime = 0; jumpCount = 0;
 
   // 生成地图平台
   (config.platforms || []).forEach(p => {
@@ -55,10 +58,11 @@ export function runGame(config, pBase64, eBase64) {
   });
 
   // 生成主角
-  const pc = config.player || { x: 100, y: 100, width: 40, height: 60, speed: 6, jump: -15, hp: 100 };
+  const pc = config.player || { x: 100, y: 100, width: 40, height: 60, speed: 6, hp: 100 };
   let pBody = Bodies.rectangle(pc.x, pc.y, pc.width, pc.height, { friction: 0, frictionAir: 0.05, inertia: Infinity, label: 'player' });
   World.add(world, pBody);
-  player = { body: pBody, w: pc.width, h: pc.height, speed: pc.speed, jump: pc.jump, hp: pc.hp, maxHp: pc.hp, facing: 1 };
+  // 强制设定一个巨强力的跳跃初速度，确保跳得上去
+  player = { body: pBody, w: pc.width, h: pc.height, speed: pc.speed || 6, jump: -16, hp: pc.hp, maxHp: pc.hp, facing: 1 };
 
   // 生成敌人
   (config.enemies || []).forEach(e => {
@@ -77,8 +81,16 @@ export function runGame(config, pBase64, eBase64) {
 
 function doJump() {
   if (state !== 'playing' || !player) return;
-  if (Math.abs(player.body.velocity.y) < 1) {
+  // 检测是否站在地面上（速度接近0或者正在下落）
+  const isGrounded = Math.abs(player.body.velocity.y) < 1;
+  
+  if (isGrounded) {
+    jumpCount = 1;
     Body.setVelocity(player.body, { x: player.body.velocity.x, y: player.jump });
+  } else if (jumpCount < 2) {
+    // 空中二段跳
+    jumpCount++;
+    Body.setVelocity(player.body, { x: player.body.velocity.x, y: player.jump * 0.9 });
   }
 }
 
@@ -90,6 +102,12 @@ function loop(now) {
 
   if (player) {
     invincibleTimer -= dt;
+    
+    // 检测落地重置跳跃次数
+    if (Math.abs(player.body.velocity.y) < 0.1) {
+      jumpCount = 0;
+    }
+
     let vx = 0;
     if (keys.left) { vx -= player.speed; player.facing = -1; }
     if (keys.right) { vx += player.speed; player.facing = 1; }
@@ -101,7 +119,6 @@ function loop(now) {
       let bvx = 0, bvy = 0;
       const shootSpeed = 15;
       
-      // 如果按了上键，垂直向上发射（也可以做斜向，这里为了手感直接做正交）
       if (keys.up) {
         bvy = -shootSpeed;
       } else {
@@ -122,6 +139,7 @@ function loop(now) {
       if(player.hp <= 0) { gameOver(false); return; }
       Body.setPosition(player.body, { x: currentConfig.player.x, y: currentConfig.player.y });
       Body.setVelocity(player.body, { x: 0, y: 0 });
+      jumpCount = 0;
     }
   }
 
@@ -142,7 +160,7 @@ function loop(now) {
       Body.setVelocity(en.body, { x: Math.sign(dx) * en.speed, y: Math.sin(now / 300) * 3 });
     }
 
-    // 敌人攻击（远程子弹同样剥离物理引擎，防止下坠）
+    // 敌人攻击
     if (en.attack === 'shoot' && dist < 600 && now - en.lastAttack > en.attackRate * 1000) {
       const angle = Math.atan2(dy, dx);
       bullets.push({
@@ -158,13 +176,12 @@ function loop(now) {
     }
   });
 
-  // 子弹碰撞检测（纯逻辑）
+  // 子弹碰撞检测
   for (let i = bullets.length - 1; i >= 0; i--) {
     let b = bullets[i];
     b.x += b.vx;
     b.y += b.vy;
 
-    // 清理飞出视野的子弹（防止无限堆积）
     if (b.x < cameraX - 200 || b.x > cameraX + canvas.width + 200 || 
         b.y < cameraY - 200 || b.y > cameraY + canvas.height + 200) {
       bullets.splice(i, 1); continue;
@@ -217,12 +234,11 @@ function loop(now) {
     ctx.strokeRect(p.body.position.x - p.w/2, p.body.position.y - p.h/2, p.w, p.h);
   });
 
-  // 玩家 (无敌闪烁)
+  // 玩家
   if (player) {
     if (!(invincibleTimer > 0 && Math.floor(now / 100) % 2 === 0)) {
       ctx.save(); ctx.translate(player.body.position.x, player.body.position.y);
       if (playerImgObj.complete && playerImgObj.naturalWidth > 0) {
-        // 根据面朝方向翻转图片
         if (player.facing === -1) ctx.scale(-1, 1);
         ctx.drawImage(playerImgObj, -player.w/2, -player.h/2, player.w, player.h);
       } else {
@@ -251,23 +267,17 @@ function loop(now) {
 
   ctx.restore();
 
-  // 固定在屏幕上的 UI
   drawHUD();
-
   requestAnimationFrame(loop);
 }
 
 function drawHUD() {
   if(!player) return;
-  // 把血条移到左上角（hud 下方），避免被按钮遮挡
   const uiX = 20, uiY = 80;
-  
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(uiX, uiY, 200, 20);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(uiX, uiY, 200, 20);
   ctx.fillStyle = player.hp > 30 ? '#00ffcc' : '#ff0000';
   ctx.fillRect(uiX, uiY, Math.max(0, 200 * (player.hp / player.maxHp)), 20);
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(uiX, uiY, 200, 20);
-  
   ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
   ctx.fillText(`HP: ${Math.max(0, player.hp)}/${player.maxHp}`, uiX + 5, uiY + 15);
   ctx.fillText(`剩余敌人: ${enemies.length}`, uiX, uiY + 40);
@@ -286,7 +296,7 @@ function bindControls() {
   document.addEventListener('keydown', e => {
     if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
     if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
-    if (e.key === 'ArrowUp' || e.key === 'w') keys.up = true; // 新增向上键判定
+    if (e.key === 'ArrowUp' || e.key === 'w') keys.up = true; 
     if (e.code === 'Space') doJump();
     if (e.key === 'j' || e.key === 'J') keys.shoot = true;
   });
@@ -305,7 +315,7 @@ function bindControls() {
   };
   bind('btn-left', () => keys.left = true, () => keys.left = false);
   bind('btn-right', () => keys.right = true, () => keys.right = false);
-  bind('btn-up', () => keys.up = true, () => keys.up = false); // 绑定新按钮
+  bind('btn-up', () => keys.up = true, () => keys.up = false);
   bind('btn-jump', () => doJump());
   bind('btn-shoot', () => keys.shoot = true, () => keys.shoot = false);
 }
