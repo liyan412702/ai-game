@@ -7,11 +7,9 @@ let state = 'menu';
 let keys = { left: false, right: false, shoot: false };
 let canvas, ctx;
 let shootTimer = 0;
-let currentRules = {};
-let theme = 'cyber';
 let camX = 0;
+let theme = 'cyber';
 
-// 定义三种主题的霓虹色
 const THEME_COLORS = {
     cyber: { player: '#00ffff', enemy: '#ff0066', platform: '#4ea1ff', coin: '#ffcc00', bg: '#0a0a1a' },
     forest: { player: '#00ff66', enemy: '#ff3300', platform: '#006622', coin: '#ffff00', bg: '#051005' },
@@ -39,15 +37,14 @@ export function runGame(config) {
     world = engine.world;
     window.world = world;
     theme = config.theme || 'cyber';
-    engine.gravity.y = config.gravity || 1; 
+    if(!THEME_COLORS[theme]) theme = 'cyber';
     
-    // 设置背景
+    engine.gravity.y = config.gravity || 1; 
     document.getElementById('game-bg').style.background = THEME_COLORS[theme].bg;
     
     entities = []; bullets = [];
     camX = 0;
 
-    // 🌟 核心：完全遍历 AI 给的实体蓝图，不写死任何逻辑！
     config.entities.forEach(e => {
         let body;
         let color = THEME_COLORS[theme].platform;
@@ -67,6 +64,7 @@ export function runGame(config) {
         }
     });
 
+    lastTime = performance.now();
     requestAnimationFrame(loop);
 }
 
@@ -85,13 +83,11 @@ function loop(now) {
         const enemies = entities.filter(e => e.type.includes('enemy'));
 
         if (p) {
-            // 玩家移动
             let vx = 0;
             if (keys.left) vx = -6;
             if (keys.right) vx = 6;
             Body.setVelocity(p.body, { x: vx, y: p.body.velocity.y });
 
-            // 玩家射击（如果用户想射击的话，任何时候都能开火）
             shootTimer -= dt;
             if (keys.shoot && shootTimer <= 0) {
                 let b = Bodies.circle(p.body.position.x, p.body.position.y, 6, { isStatic: false, isSensor: true });
@@ -100,7 +96,6 @@ function loop(now) {
                 shootTimer = 0.15;
             }
 
-            // 怪物 AI 行为解析
             enemies.forEach(en => {
                 let dir = p.body.position.x > en.body.position.x ? 1 : -1;
                 if (en.type === 'enemy_fly') {
@@ -111,7 +106,6 @@ function loop(now) {
             });
         }
 
-        // 子弹碰撞
         for (let i = bullets.length - 1; i >= 0; i--) {
             let b = bullets[i];
             for (let j = enemies.length - 1; j >= 0; j--) {
@@ -125,7 +119,6 @@ function loop(now) {
             }
         }
 
-        // 胜负判定
         if (enemies.length === 0) {
             state = 'menu';
             alert('🎉 世界已被净化！通关！');
@@ -139,14 +132,9 @@ function loop(now) {
         Engine.update(engine, dt * 1000);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 相机跟随
-        if (p && p.body.position.x > canvas.width / 2) {
-            camX = p.body.position.x - canvas.width / 2;
-        } else {
-            camX = 0;
-        }
+        if (p && p.body.position.x > canvas.width / 2) camX = p.body.position.x - canvas.width / 2;
+        else camX = 0;
 
-        // 🌟 画发光霓虹实体，纯代码，无黑边！
         ctx.save();
         ctx.translate(-camX, 0);
 
@@ -155,24 +143,18 @@ function loop(now) {
             ctx.translate(e.body.position.x, e.body.position.y);
             ctx.rotate(e.body.angle);
             
-            // 发光效果
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = e.color;
-            ctx.fillStyle = e.color;
+            ctx.shadowBlur = 15; ctx.shadowColor = e.color; ctx.fillStyle = e.color;
             
-            // 绘制形状
             if (e.type === 'coin') {
                 ctx.beginPath(); ctx.arc(0, 0, e.w/2, 0, Math.PI * 2); ctx.fill();
             } else {
                 ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
-                // 加个内边框增加立体感
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
                 ctx.strokeRect(-e.w/2, -e.h/2, e.w, e.h);
             }
             ctx.restore();
         });
 
-        // 画子弹
         ctx.shadowBlur = 10; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffff00';
         bullets.forEach(b => {
             ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
@@ -180,7 +162,6 @@ function loop(now) {
 
         ctx.restore();
     } catch (e) { console.error(e); }
-    
     requestAnimationFrame(loop);
 }
 
