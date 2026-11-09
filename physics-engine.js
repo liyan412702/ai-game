@@ -46,32 +46,23 @@ export function runGame(config, playerBase64, enemyBase64) {
 
     const floorY = canvas.height - 80;
     
-    // 1. 强制铺满地面
+    // 1. 地面
     let groundBody = createEntity('ground', canvas.width / 2, floorY + 20, canvas.width, 40);
     World.add(world, groundBody);
     entities.push({ type: 'ground', body: groundBody, w: canvas.width, h: 40 });
 
-    // 2. 强制生成主角
+    // 2. 主角
     let playerBody = createEntity('player', 100, floorY - 100, 40, 60);
     World.add(world, playerBody);
     entities.push({ type: 'player', body: playerBody, w: 40, h: 60 });
 
-    // 3. 怪物按屏幕排版
+    // 3. 怪物
     let enemyCount = config.entities.filter(e => e.type === 'enemy').length || 3;
     for (let i = 0; i < enemyCount; i++) {
         let ex = canvas.width - 150 - (i * 80);
         let enemyBody = createEntity('enemy', ex, floorY - 100, 40, 40);
         World.add(world, enemyBody);
         entities.push({ type: 'enemy', body: enemyBody, w: 40, h: 40, hp: currentRules.enemy_hp || 30 });
-    }
-
-    // 4. 如果 AI 要收集金币
-    if (currentRules.win_condition === 'collect_coins') {
-        for (let i = 0; i < (currentRules.target_value || 5); i++) {
-            let coinBody = createEntity('coin', 200 + i * 80, floorY - 150, 20, 20);
-            World.add(world, coinBody);
-            entities.push({ type: 'coin', body: coinBody, w: 20, h: 20 });
-        }
     }
 
     requestAnimationFrame(loop);
@@ -85,69 +76,79 @@ function doJump() {
 let lastTime = 0;
 function loop(now) {
     if (state !== 'playing') return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
-    
-    const p = entities.find(e => e.type === 'player');
-    const enemies = entities.filter(e => e.type === 'enemy');
-
-    if (p) {
-        let vx = 0;
-        if (keys.left) vx = -(currentRules.player_speed || 6);
-        if (keys.right) vx = currentRules.player_speed || 6;
-        Body.setVelocity(p.body, { x: vx, y: p.body.velocity.y });
-
-        shootTimer -= dt;
-        if (keys.shoot && shootTimer <= 0) {
-            let b = Bodies.circle(p.body.position.x + 20, p.body.position.y, 6, { isStatic: false, render: { fillStyle: '#ffff00' }, label: 'bullet' });
-            Body.setVelocity(b, { x: 15, y: 0 }); 
-            World.add(world, b); bullets.push(b);
-            shootTimer = 0.15;
-        }
-
-        enemies.forEach(en => {
-            let dir = p.body.position.x > en.body.position.x ? 1 : -1;
-            if (currentRules.enemy_behavior === 'fly') {
-                Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 5 }); 
-            } else {
-                Body.setVelocity(en.body, { x: dir * 3, y: en.body.velocity.y }); 
-            }
-        });
-    }
-
-    updateRuleState(
-        entities, bullets, p ? p.body : null,
-        (enemyNum, score) => {
-            let hud = document.getElementById('hud');
-            if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title').textContent}</div><div style="color:#00ffcc;">敌人剩余: ${enemyNum} | 分数: ${score}</div>`;
-        },
-        () => { alert("💀 你阵亡了！"); document.getElementById('exit-btn').click(); },
-        () => { alert("🎉 恭喜你完成了 AI 设计的《" + document.getElementById('hud-title').textContent + "》"); document.getElementById('exit-btn').click(); }
-    );
-
-    Engine.update(engine, dt * 1000);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    entities.forEach(e => {
-        ctx.save();
-        ctx.translate(e.body.position.x, e.body.position.y);
+    // 🌟 核心防御：用 try-catch 包裹，即使某一帧报错，也不会导致整个游戏彻底卡死
+    try {
+        const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
         
-        if (e.type === 'player' && playerImgObj.complete) {
-            ctx.globalCompositeOperation = 'multiply'; 
-            ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
-        } else if (e.type === 'enemy' && enemyImgObj.complete) {
-            ctx.globalCompositeOperation = 'multiply';
-            ctx.drawImage(enemyImgObj, -e.w/2, -e.h/2, e.w, e.h);
-        } else {
-            ctx.fillStyle = e.body.render.fillStyle;
-            if(e.type === 'coin') { ctx.beginPath(); ctx.arc(0,0,e.w/2,0,Math.PI*2); ctx.fill(); }
-            else ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
-        }
-        ctx.restore();
-    });
+        const p = entities.find(e => e.type === 'player');
+        const enemies = entities.filter(e => e.type === 'enemy');
 
-    bullets.forEach(b => {
-        ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
-    });
+        if (p) {
+            let vx = 0;
+            if (keys.left) vx = -(currentRules.player_speed || 6);
+            if (keys.right) vx = currentRules.player_speed || 6;
+            Body.setVelocity(p.body, { x: vx, y: p.body.velocity.y });
+
+            shootTimer -= dt;
+            if (keys.shoot && shootTimer <= 0) {
+                let b = Bodies.circle(p.body.position.x + 20, p.body.position.y, 6, { isStatic: false, render: { fillStyle: '#ffff00' }, label: 'bullet' });
+                Body.setVelocity(b, { x: 15, y: 0 }); 
+                World.add(world, b); bullets.push(b);
+                shootTimer = 0.15;
+            }
+
+            enemies.forEach(en => {
+                let dir = p.body.position.x > en.body.position.x ? 1 : -1;
+                if (currentRules.enemy_behavior === 'fly') {
+                    Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 5 }); 
+                } else {
+                    Body.setVelocity(en.body, { x: dir * 3, y: en.body.velocity.y }); 
+                }
+            });
+        }
+
+        updateRuleState(
+            entities, bullets, p ? p.body : null,
+            (enemyNum, score) => {
+                let hud = document.getElementById('hud');
+                if(hud) {
+                    // 🌟 安全读取，如果 hud-title 为空，给个默认名字
+                    let titleEl = document.getElementById('hud-title');
+                    let titleText = titleEl ? titleEl.textContent : '物理沙盒';
+                    hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${titleText}</div><div style="color:#00ffcc;">敌人剩余: ${enemyNum} | 分数: ${score}</div>`;
+                }
+            },
+            () => { alert("💀 你阵亡了！"); document.getElementById('exit-btn').click(); },
+            () => { alert("🎉 恭喜你完成了 AI 设计的《" + (document.getElementById('hud-title')?.textContent || '游戏') + "》"); document.getElementById('exit-btn').click(); }
+        );
+
+        Engine.update(engine, dt * 1000);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        entities.forEach(e => {
+            ctx.save();
+            ctx.translate(e.body.position.x, e.body.position.y);
+            
+            if (e.type === 'player' && playerImgObj.complete) {
+                ctx.globalCompositeOperation = 'multiply'; 
+                ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
+            } else if (e.type === 'enemy' && enemyImgObj.complete) {
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.drawImage(enemyImgObj, -e.w/2, -e.h/2, e.w, e.h);
+            } else {
+                ctx.fillStyle = e.body.render.fillStyle;
+                if(e.type === 'coin') { ctx.beginPath(); ctx.arc(0,0,e.w/2,0,Math.PI*2); ctx.fill(); }
+                else ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
+            }
+            ctx.restore();
+        });
+
+        bullets.forEach(b => {
+            ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
+        });
+    } catch (e) {
+        console.error("引擎渲染发生错误:", e);
+    }
     
     requestAnimationFrame(loop);
 }
