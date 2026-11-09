@@ -1,5 +1,5 @@
-import { generateWorldConfig } from './ai-service.js?v=10';
-import { initEngine, stopGame, runGame } from './physics-engine.js?v=10';
+import { generateWorldConfig } from './ai-service.js';
+import { initEngine, stopGame, runGame } from './physics-engine.js';
 
 try { initEngine(); } catch(e) { alert("物理引擎加载失败：" + e.message); }
 
