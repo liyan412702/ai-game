@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI物理沙盒 v7.0</title>
-<!-- 引入 Matter.js 物理引擎 -->
-<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<title>AI物理沙盒 v7.1 防卡死版</title>
+<!-- 更换为国内极其稳定的 CDN -->
+<script src="https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#050508; font-family: system-ui, sans-serif; user-select:none; color:#fff; }
@@ -19,12 +19,6 @@
   #menu-screen { padding:24px; background:radial-gradient(circle at top, #1a1a3a 0%, #050508 100%); }
   .header h1 { font-size:28px; font-weight:900; background:linear-gradient(135deg,#00ffff,#8b5cf6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:8px; }
   .header p { color:#889; font-size:14px; margin-bottom:30px; }
-  
-  .category-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
-  .category-card { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:20px 16px; text-align:center; cursor:pointer; }
-  .category-card:active { transform:scale(0.95); }
-  .category-card .icon { font-size:32px; margin-bottom:12px; display:block; }
-  .category-card .title { font-size:16px; font-weight:700; }
   
   #form-screen { padding:24px; background:#0a0a14; }
   .back-btn { background:none; border:none; color:#889; font-size:14px; margin-bottom:20px; cursor:pointer; }
@@ -92,14 +86,13 @@
 
 <script type="module">
 const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
-const { Engine, World, Bodies, Body, Events } = Matter;
+const { Engine, World, Bodies, Body } = Matter;
 
 let engine, world;
-let entities = []; // 存储所有物理实体
+let entities = []; 
 let config = {};
 let state = 'menu';
 
-// 加载图像资源
 let bgImgObj = new Image();
 let playerImgObj = new Image();
 let enemyImgObj = new Image();
@@ -136,13 +129,11 @@ window.generateGame = async function() {
   document.getElementById('loading-mask').classList.add('show');
   
   try {
-    // 1. 获取 JSON 图纸
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: story }) });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     config = data;
 
-    // 2. 请求图片
     document.getElementById('loading-text').textContent = 'AI 生成世界背景中...';
     let bgUrl = await requestZhipuImage(config.bg_prompt);
     if (bgUrl) gameBg.style.backgroundImage = `url(${bgUrl})`;
@@ -156,9 +147,8 @@ window.generateGame = async function() {
     if (eUrl) enemyBase64 = await processImageRemoveBg(eUrl);
 
   } catch(e) { 
-    alert('生成失败: ' + e.message); 
-    window.backToMenu();
-    return;
+    console.error(e);
+    alert('生成遇到问题，将直接进入简易世界。'); 
   } finally {
     document.getElementById('loading-mask').classList.remove('show');
   }
@@ -167,34 +157,65 @@ window.generateGame = async function() {
 };
 
 async function requestZhipuImage(prompt) {
-  const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_KEY}` },
-    body: JSON.stringify({ model: 'cogview-3-flash', prompt: prompt, size: '1024x1024' })
-  });
-  const data = await res.json();
-  return (data.data && data.data[0]) ? data.data[0].url : null;
+  try {
+    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_KEY}` },
+      body: JSON.stringify({ model: 'cogview-3-flash', prompt: prompt, size: '1024x1024' })
+    });
+    const data = await res.json();
+    return (data.data && data.data[0]) ? data.data[0].url : null;
+  } catch(e) { return null; }
 }
 
+// 🌟 核心：加入 5 秒超时熔断的抠图函数
 async function processImageRemoveBg(imageUrl) {
   return new Promise((resolve) => {
+    let isResolved = false;
+    
+    // 5秒超时熔断机制
+    const timeoutId = setTimeout(() => {
+        if (!isResolved) {
+            isResolved = true;
+            console.warn('抠图代理超时，放弃抠图，直接使用原图');
+            resolve(imageUrl); 
+        }
+    }, 5000);
+
     const img = new Image();
     img.crossOrigin = "Anonymous";
     img.src = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl)}`;
+    
     img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.width; c.height = img.height;
-      const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
-      const imgData = cx.getImageData(0, 0, c.width, c.height); const data = imgData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        if ((data[i] + data[i+1] + data[i+2]) < 150) data[i + 3] = 0;
+      if (isResolved) return;
+      try {
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
+        const imgData = cx.getImageData(0, 0, c.width, c.height); const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          if ((data[i] + data[i+1] + data[i+2]) < 150) data[i + 3] = 0;
+        }
+        cx.putImageData(imgData, 0, 0); 
+        isResolved = true;
+        clearTimeout(timeoutId);
+        resolve(c.toDataURL()); 
+      } catch (e) {
+        isResolved = true;
+        clearTimeout(timeoutId);
+        resolve(imageUrl);
       }
-      cx.putImageData(imgData, 0, 0); resolve(c.toDataURL()); 
     };
-    img.onerror = () => resolve(imageUrl);
+    img.onerror = () => {
+        if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeoutId);
+            resolve(imageUrl);
+        }
+    };
   });
 }
 
-// ================= 物理沙盒引擎 (Matter.js) =================
+// ================= 物理沙盒引擎 =================
 function startGame() {
   document.getElementById('canvas2d').style.display = 'block';
   document.getElementById('controls').style.display = 'flex';
@@ -209,14 +230,24 @@ function startGame() {
   state='playing';
   resize2D(); 
   
-  // 加载物理引擎
   engine = Engine.create();
   world = engine.world;
-  engine.gravity.y = 1; // 标准重力
+  engine.gravity.y = 1; 
   
   entities = [];
   
-  // 根据 AI 的图纸生成实体
+  if (playerBase64) playerImgObj.src = playerBase64;
+  if (enemyBase64) enemyImgObj.src = enemyBase64;
+
+  // 如果 AI 没给数据，给个保底
+  if (!config.entities || config.entities.length === 0) {
+      config.entities = [
+          { type: "ground", x: innerWidth/2, y: innerHeight - 50, w: innerWidth, h: 40 },
+          { type: "player", x: 100, y: innerHeight - 150, w: 40, h: 60 },
+          { type: "enemy", x: innerWidth - 100, y: innerHeight - 150, w: 40, h: 40 }
+      ];
+  }
+
   config.entities.forEach(e => {
     let body;
     if (e.type === 'ground') {
@@ -225,26 +256,12 @@ function startGame() {
       body = Bodies.rectangle(e.x, e.y, e.w, e.h, { isStatic: true, render: { fillStyle: '#ff0066' } });
     } else if (e.type === 'player') {
       body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0.05, restitution: 0, render: { fillStyle: '#4ea1ff' } });
-      playerImgObj.src = playerBase64;
     } else if (e.type === 'enemy') {
       body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0.05, render: { fillStyle: '#ff0000' } });
-      if(!enemyImgObj.src) enemyImgObj.src = enemyBase64;
     }
     if (body) {
       World.add(world, body);
       entities.push({ type: e.type, body: body, w: e.w, h: e.h });
-    }
-  });
-
-  // 键盘监听
-  document.addEventListener('keydown', (e) => {
-    if (state !== 'playing') return;
-    const p = entities.find(e => e.type === 'player');
-    if (!p) return;
-    if (e.key === 'ArrowLeft' || e.key === 'a') Body.setVelocity(p.body, { x: -5, y: p.body.velocity.y });
-    if (e.key === 'ArrowRight' || e.key === 'd') Body.setVelocity(p.body, { x: 5, y: p.body.velocity.y });
-    if ((e.code === 'Space' || e.key === 'ArrowUp') && Math.abs(p.body.velocity.y) < 0.1) {
-      Body.setVelocity(p.body, { x: p.body.velocity.x, y: -12 });
     }
   });
 
@@ -257,13 +274,9 @@ function loop(now) {
   if (state !== 'playing') return;
   const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
   
-  // 步进物理引擎
   Engine.update(engine, dt * 1000);
-  
-  // 渲染
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
   
-  // 绘制所有实体
   entities.forEach(e => {
     ctx.save();
     ctx.translate(e.body.position.x, e.body.position.y);
@@ -283,7 +296,7 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-// 触摸控件
+// 控件绑定
 document.getElementById('left').addEventListener('touchstart', (e) => {
   const p = entities.find(e => e.type === 'player'); if(p) Body.setVelocity(p.body, { x: -5, y: p.body.velocity.y });
 });
@@ -292,6 +305,16 @@ document.getElementById('right').addEventListener('touchstart', (e) => {
 });
 document.getElementById('jump').addEventListener('touchstart', (e) => {
   const p = entities.find(e => e.type === 'player'); if(p && Math.abs(p.body.velocity.y) < 0.1) Body.setVelocity(p.body, { x: p.body.velocity.x, y: -12 });
+});
+document.addEventListener('keydown', (e) => {
+    if (state !== 'playing') return;
+    const p = entities.find(e => e.type === 'player');
+    if (!p) return;
+    if (e.key === 'ArrowLeft' || e.key === 'a') Body.setVelocity(p.body, { x: -5, y: p.body.velocity.y });
+    if (e.key === 'ArrowRight' || e.key === 'd') Body.setVelocity(p.body, { x: 5, y: p.body.velocity.y });
+    if ((e.code === 'Space' || e.key === 'ArrowUp') && Math.abs(p.body.velocity.y) < 0.1) {
+      Body.setVelocity(p.body, { x: p.body.velocity.x, y: -12 });
+    }
 });
 
 resize2D();
