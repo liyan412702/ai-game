@@ -3,69 +3,129 @@ import { initEngine, stopGame, runGame } from './physics-engine.js';
 
 initEngine();
 
-const menuScreen = document.getElementById('menu-screen');
-const formScreen = document.getElementById('form-screen');
-const loadingMask = document.getElementById('loading-mask');
-const loadingText = document.getElementById('loading-text');
-const gameBg = document.getElementById('game-bg');
-const canvas = document.getElementById('canvas2d');
+let currentCategory = 'shooter';
+let tempConfig = null;
+let tempPlayerBase64 = null;
+let tempEnemyBase64 = null;
 
-window.openForm = function() {
-    menuScreen.classList.remove('active');
-    formScreen.classList.add('active');
+window.openForm = function(type, title) {
+    currentCategory = type;
+    document.getElementById('form-title').textContent = '定制 ' + title;
+    switchScreen('form-screen');
 };
 
 window.backToMenu = function() {
-    menuScreen.classList.add('active');
-    formScreen.classList.remove('active');
-    gameBg.style.display = 'none';
-    canvas.style.display = 'none';
+    switchScreen('menu-screen');
+    stopGame();
+    document.getElementById('canvas2d').style.display = 'none';
+    document.getElementById('game-bg').style.display = 'none';
     document.getElementById('controls').style.display = 'none';
     document.getElementById('exit-btn').style.display = 'none';
     document.getElementById('hud').style.display = 'none';
-    document.getElementById('ai-thoughts').style.display = 'none';
-    stopGame();
 };
 
+function switchScreen(id) {
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    if (id) document.getElementById(id).classList.add('active');
+}
+
 window.generateGame = async function() {
-    const story = document.getElementById('form-story').value || '生成一个赛博朋克平地，有主角和怪物';
-    formScreen.classList.remove('active');
-    loadingMask.classList.add('show');
+    const theme = document.getElementById('form-theme').value;
+    const enemyCount = document.getElementById('form-enemyCount').value;
+    const enemyHp = document.getElementById('form-enemyHp').value;
+    const story = document.getElementById('form-story').value;
     
+    // 把用户的参数拼进 prompt 告诉 AI
+    const prompt = `游戏分类：${currentCategory}。主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。剧情细节：${story}`;
+
+    switchScreen(null);
+    document.getElementById('loading-mask').classList.add('show');
+    document.getElementById('loading-text').textContent = 'AI 正在推演玩法机制...';
+
     try {
-        // 1. 拿数据
-        const config = await generateWorldConfig(story);
+        tempConfig = await generateWorldConfig(prompt);
+        // 强制注入用户设定的数值，覆盖 AI 的懒癌
+        tempConfig.user_enemyCount = parseInt(enemyCount) || 10;
+        tempConfig.game_rules.enemy_hp = parseInt(enemyHp) || 30;
 
-        // 2. 拿图片
-        loadingText.textContent = 'AI 生成世界背景中...';
-        let bgUrl = await requestZhipuImage(config.bg_prompt);
-        if (bgUrl) gameBg.style.backgroundImage = `url(${bgUrl})`;
+        document.getElementById('loading-text').textContent = 'AI 绘制背景中...';
+        let bgUrl = await requestZhipuImage(tempConfig.bg_prompt);
+        if (bgUrl) document.getElementById('preview-img').src = bgUrl;
+        
+        // 临时存一下背景图
+        document.getElementById('game-bg').style.backgroundImage = `url(${bgUrl})`;
 
-        loadingText.textContent = 'AI 生成主角实体中...';
-        let pUrl = await requestZhipuImage(config.player_prompt);
-        let playerBase64 = await processImageRemoveBg(pUrl);
+        document.getElementById('loading-text').textContent = 'AI 绘制角色并抠图...';
+        let pUrl = await requestZhipuImage(tempConfig.player_prompt);
+        tempPlayerBase64 = await processImageRemoveBg(pUrl);
+        
+        let eUrl = await requestZhipuImage(tempConfig.enemy_prompt);
+        tempEnemyBase64 = await processImageRemoveBg(eUrl);
 
-        loadingText.textContent = 'AI 生成怪物实体中...';
-        let eUrl = await requestZhipuImage(config.enemy_prompt);
-        let enemyBase64 = await processImageRemoveBg(eUrl);
+        // 展示预览页
+        document.getElementById('preview-thoughts').innerHTML = "💡 主策推演: " + tempConfig.design_thoughts;
+        switchScreen('preview-screen');
+        
+        // 保存到历史记录
+        saveHistory(prompt, tempConfig);
 
-        // 3. 启动引擎
-        canvas.style.display = 'block';
-        document.getElementById('controls').style.display = 'flex';
-        document.getElementById('exit-btn').style.display = 'block';
-        document.getElementById('hud').style.display = 'block';
-        gameBg.style.display = 'block';
-        document.getElementById('hud-title').textContent = config.title || '物理世界';
-        document.getElementById('ai-thoughts').textContent = "💡 架构师: " + config.design_thoughts; 
-        document.getElementById('ai-thoughts').style.display = 'block'; 
-
-        runGame(config, playerBase64, enemyBase64);
-
-    } catch(e) { 
-        console.error(e);
-        alert('生成遇到问题: ' + e.message); 
-        window.backToMenu();
+    } catch(e) {
+        alert('生成失败: ' + e.message);
+        backToMenu();
     } finally {
-        loadingMask.classList.remove('show');
+        document.getElementById('loading-mask').classList.remove('show');
     }
+};
+
+window.startPlay = function() {
+    switchScreen(null);
+    document.getElementById('canvas2d').style.display = 'block';
+    document.getElementById('game-bg').style.display = 'block';
+    document.getElementById('controls').style.display = 'flex';
+    document.getElementById('exit-btn').style.display = 'block';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('hud-title').textContent = tempConfig.title;
+    
+    runGame(tempConfig, tempPlayerBase64, tempEnemyBase64);
+};
+
+// ================= 历史记录功能 =================
+function saveHistory(prompt, config) {
+    let history = JSON.parse(localStorage.getItem('game_history') || '[]');
+    // 只存最近 10 个
+    history.unshift({ prompt, config, time: new Date().toLocaleString() });
+    if (history.length > 10) history.pop();
+    localStorage.setItem('game_history', JSON.stringify(history));
+}
+
+window.showHistory = function() {
+    let history = JSON.parse(localStorage.getItem('game_history') || '[]');
+    const list = document.getElementById('history-list');
+    if (history.length === 0) {
+        list.innerHTML = '<p style="color:#666; text-align:center;">暂无记录</p>';
+    } else {
+        list.innerHTML = history.map((item, idx) => `
+            <div class="history-item" onclick="loadHistory(${idx})">
+                <div style="font-weight:700; color:#00ffcc;">${item.config.title}</div>
+                <div style="font-size:12px; color:#aaa; margin-top:4px;">${item.prompt}</div>
+                <div style="font-size:10px; color:#666; margin-top:4px;">${item.time}</div>
+            </div>
+        `).join('');
+    }
+    switchScreen('history-screen');
+};
+
+window.loadHistory = function(idx) {
+    let history = JSON.parse(localStorage.getItem('game_history') || '[]');
+    const item = history[idx];
+    if(!item) return;
+    
+    // 这里为了简化，直接重开他当时的参数
+    document.getElementById('form-theme').value = "重新生成的"; 
+    document.getElementById('form-enemyCount').value = item.config.user_enemyCount || 10;
+    document.getElementById('form-enemyHp').value = item.config.game_rules.enemy_hp || 30;
+    document.getElementById('form-story').value = item.prompt;
+    
+    // 重新生成一次，保证图片缓存不丢
+    generateGame();
 };
