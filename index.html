@@ -3,20 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI游戏造梦器 v6.0</title>
+<title>AI游戏造梦器 v6.1</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#050508; font-family: system-ui, sans-serif; user-select:none; color:#fff; }
   
-  /* 背景与画布 */
   #game-bg { position:fixed; inset:0; background-size:cover; background-position:center; z-index:1; opacity:0.3; display:none; }
   #canvas2d { position:relative; z-index:2; display:none; width:100%; height:100%; touch-action:none; }
   
-  /* 通用 UI 层 */
   .screen { position:fixed; inset:0; z-index:10; overflow-y:auto; display:none; }
   .screen.active { display:block; }
   
-  /* 主页 - 造梦大厅 */
   #menu-screen { padding:24px; background:radial-gradient(circle at top, #1a1a3a 0%, #050508 100%); }
   .header h1 { font-size:28px; font-weight:900; background:linear-gradient(135deg,#00ffff,#8b5cf6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:8px; }
   .header p { color:#889; font-size:14px; margin-bottom:30px; }
@@ -28,7 +25,6 @@
   .category-card .title { font-size:16px; font-weight:700; }
   .category-card .desc { font-size:12px; color:#889; margin-top:4px; }
   
-  /* 配置表单页 */
   #form-screen { padding:24px; background:#0a0a14; }
   .back-btn { background:none; border:none; color:#889; font-size:14px; margin-bottom:20px; cursor:pointer; padding:10px 0; display:flex; align-items:center; }
   .form-group { margin-bottom:20px; }
@@ -39,12 +35,10 @@
   
   .row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   
-  /* 游戏内 UI */
   #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; font-size:14px; text-shadow:0 1px 3px #000; pointer-events:none; z-index:5; display:none; }
   #hud .big { font-size:26px; font-weight:800; color:#4ea1ff; }
   #ai-thoughts { position:fixed; top:calc(80px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; font-style:italic; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; line-height:1.4; z-index:5; }
   
-  /* 虚拟按键 */
   #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; display:none; }
   .pad { display:flex; gap:12px; pointer-events:auto; }
   .btn-ctrl { width:64px; height:64px; border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-size:24px; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; }
@@ -52,7 +46,6 @@
   #jump { width:76px; height:76px; font-size:18px; }
   #shoot { width:76px; height:76px; font-size:18px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
   
-  /* 加载遮罩 */
   #loading-mask { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; backdrop-filter:blur(5px); }
   #loading-mask.show { display:flex; }
   .spinner { width:50px; height:50px; border:4px solid rgba(255,255,255,0.1); border-top-color:#00ffcc; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
@@ -61,7 +54,6 @@
 </head>
 <body>
 
-<!-- ================= 主页大厅 ================= -->
 <div id="menu-screen" class="screen active">
   <div class="header">
     <h1>AI 游戏造梦器</h1>
@@ -69,22 +61,22 @@
   </div>
   
   <div class="category-grid">
-    <div class="category-card" onclick="openForm('shooter', '动作射击', '默认怪物：异星生物 / 主角：特种兵')">
+    <div class="category-card" onclick="openForm('shooter', '动作射击', '赛博朋克霓虹都市')">
       <span class="icon">🚀</span>
       <div class="title">动作射击</div>
       <div class="desc">魂斗罗 / 弹幕地狱</div>
     </div>
-    <div class="category-card" onclick="openForm('tower', '策略塔防', '默认怪物：变异体 / 防御塔：激光炮')">
+    <div class="category-card" onclick="openForm('tower', '策略塔防', '末日废土防线')">
       <span class="icon">🛡️</span>
       <div class="title">策略塔防</div>
       <div class="desc">抵御虫群 / 防线保卫</div>
     </div>
-    <div class="category-card" onclick="openForm('parkour', '极速跑酷', '默认场景：赛博都市 / 障碍：霓虹光墙')">
+    <div class="category-card" onclick="openForm('parkour', '极速跑酷', '太空科幻轨道')">
       <span class="icon">🏃</span>
       <div class="title">极速跑酷</div>
       <div class="desc">躲避障碍 / 极限冲刺</div>
     </div>
-    <div class="category-card" onclick="openForm('dressup', '二次元换装', '默认风格：赛博朋克 / 主角：机甲少女')">
+    <div class="category-card" onclick="openForm('dressup', '二次元换装', '废土机能风少女')">
       <span class="icon">👗</span>
       <div class="title">二次元换装</div>
       <div class="desc">自由穿搭 / 色彩美学</div>
@@ -92,7 +84,6 @@
   </div>
 </div>
 
-<!-- ================= 配置表单 ================= -->
 <div id="form-screen" class="screen">
   <button class="back-btn" onclick="backToMenu()">← 返回大厅</button>
   <h2 id="form-title" style="font-size:24px; font-weight:800; margin-bottom:20px; color:#00ffcc;">定制游戏</h2>
@@ -108,7 +99,7 @@
       <input type="number" id="form-enemyCount" class="form-control" value="20">
     </div>
     <div class="form-group">
-      <label>怪物血量 / 攻击力</label>
+      <label>怪物血量</label>
       <input type="number" id="form-enemyHp" class="form-control" value="30">
     </div>
   </div>
@@ -119,7 +110,7 @@
       <input type="number" id="form-playerHp" class="form-control" value="100">
     </div>
     <div class="form-group">
-      <label>通关目标 (波次/分数)</label>
+      <label>通关目标 (波次)</label>
       <input type="number" id="form-target" class="form-control" value="5">
     </div>
   </div>
@@ -132,7 +123,6 @@
   <button class="btn-ctrl" style="width:100%; height:54px; border-radius:16px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000; margin-top:10px;" onclick="generateGame()">✨ 生成游戏</button>
 </div>
 
-<!-- ================= 游戏画面 ================= -->
 <div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
 
@@ -150,14 +140,12 @@
   <div class="pad" id="action-controls"><div class="btn-ctrl" id="jump">跳</div><div class="btn-ctrl" id="shoot">射击</div></div>
 </div>
 
-<!-- 加载中 -->
 <div id="loading-mask">
   <div class="spinner"></div>
   <div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策构思中...</div>
 </div>
 
 <script type="module">
-// 智谱 API Key
 const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
 
 const SVG_PLAYER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 60"><rect x="15" y="5" width="20" height="20" fill="%2300ffff" rx="5"/><rect x="10" y="30" width="30" height="25" fill="%234ea1ff" rx="3"/><rect x="0" y="30" width="10" height="8" fill="%23fff"/></svg>';
@@ -167,26 +155,23 @@ let enemyImgObj = new Image();
 
 let currentCategory = 'shooter';
 let config = { gameType:'shooter', title:'游戏', enemyCount:20, enemyHp:30, enemySpeed:150, playerHp:100, design_thoughts:'', image_url:null, player_url:null, enemy_url:null };
-let state = 'menu'; // menu, playing
-let currentPage = 'menu';
+let state = 'menu'; 
 const canvas2d = document.getElementById('canvas2d'), ctx = canvas2d.getContext('2d');
 const gameBg = document.getElementById('game-bg');
 
 function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
 window.addEventListener('resize', resize2D);
 
-// ================= UI 逻辑 =================
-function openForm(type, title, defaultTheme) {
+// 🌟 核心修复：将这些函数暴露给全局，这样 HTML 里的 onclick 才能找到它们
+window.openForm = function(type, title, defaultTheme) {
   currentCategory = type;
   document.getElementById('form-title').textContent = '定制 ' + title;
   document.getElementById('form-theme').value = defaultTheme;
   document.getElementById('menu-screen').classList.remove('active');
   document.getElementById('form-screen').classList.add('active');
-  currentPage = 'form';
-}
+};
 
-function backToMenu() {
-  // 切换UI
+window.backToMenu = function() {
   document.getElementById('menu-screen').classList.add('active');
   document.getElementById('form-screen').classList.remove('active');
   document.getElementById('canvas2d').style.display = 'none';
@@ -195,21 +180,10 @@ function backToMenu() {
   document.getElementById('exit-btn').style.display = 'none';
   document.getElementById('hud').style.display = 'none';
   document.getElementById('ai-thoughts').style.display = 'none';
-  
   state = 'menu';
-  currentPage = 'menu';
-}
+};
 
-function showHUD() {
-  document.getElementById('canvas2d').style.display = 'block';
-  document.getElementById('controls').style.display = 'flex';
-  document.getElementById('exit-btn').style.display = 'block';
-  document.getElementById('hud').style.display = 'block';
-  gameBg.style.display = 'block';
-}
-
-// ================= 核心业务逻辑 =================
-async function generateGame() {
+window.generateGame = async function() {
   const theme = document.getElementById('form-theme').value;
   const enemyCount = document.getElementById('form-enemyCount').value;
   const enemyHp = document.getElementById('form-enemyHp').value;
@@ -217,25 +191,20 @@ async function generateGame() {
   const target = document.getElementById('form-target').value;
   const story = document.getElementById('form-story').value;
 
-  // 组装极其详细的 Prompt 给 AI
   const prompt = `游戏类型：${currentCategory}。核心主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。主角血量：${playerHp}。通关目标：${target}。剧情：${story}`;
 
   document.getElementById('form-screen').classList.remove('active');
   document.getElementById('loading-mask').classList.add('show');
   
   try {
-    // 1. 问后端要配置
     const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     config = data;
-
-    // 强制覆盖玩家填写的核心数值，保证游戏平衡
     config.enemyCount = parseInt(enemyCount) || 20;
     config.enemyHp = parseInt(enemyHp) || 30;
     config.playerHp = parseInt(playerHp) || 100;
     
-    // 2. 生成图片
     document.getElementById('loading-text').textContent = 'AI 绘制壁纸中...';
     config.image_url = await requestZhipuImage(`epic wide background, ${config.image_prompt}`);
     
@@ -249,15 +218,14 @@ async function generateGame() {
 
   } catch(e) { 
     alert('生成失败: ' + e.message); 
-    backToMenu();
+    window.backToMenu();
     return;
   } finally {
     document.getElementById('loading-mask').classList.remove('show');
   }
   
-  // 3. 启动游戏
   startGame();
-}
+};
 
 async function requestZhipuImage(prompt) {
   const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
@@ -291,7 +259,7 @@ async function processImageRemoveBg(imageUrl) {
   });
 }
 
-// ================= 引擎逻辑 (只保留射击) =================
+// ================= 游戏引擎逻辑 =================
 let keys = {left:false, right:false};
 let player = { x: 100, y: 0, vx: 0, vy: 0, w: 80, h: 100, hp: 100, onGround: false, dir: 1, invincible: 0, shootCd: 0, isShooting: false };
 let camX = 0, shootEnemies = [], shootBullets = [], particles = [], platforms = [], bossSpawned = false, killedCount = 0, spawnTimerShoot = 0;
@@ -308,8 +276,6 @@ function buildShooterScene() {
   if (config.player_url) playerImgObj.src = config.player_url;
   if (config.enemy_url) enemyImgObj.src = config.enemy_url;
 }
-
-function spawnParticles(x, y, color, count) { for (let i = 0; i < count; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 400, vy: (Math.random() - 0.5) * 400, life: 1, color }); }
 
 function updateShooter(dt) {
   ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
@@ -369,7 +335,7 @@ function updateShooter(dt) {
 
     if (Math.abs(en.x - player.x) < 40 && Math.abs(en.y - player.y) < 60 && player.invincible <= 0) {
       player.hp -= 20; player.invincible = 1.5;
-      if (player.hp <= 0) { state = 'over'; alert('阵亡了！'); backToMenu(); return; }
+      if (player.hp <= 0) { state = 'over'; alert('阵亡了！'); window.backToMenu(); return; }
     }
     for (let j = shootBullets.length - 1; j >= 0; j--) {
       let b = shootBullets[j];
@@ -385,7 +351,7 @@ function updateShooter(dt) {
     bossSpawned = true;
     shootEnemies.push({ x: camX + canvas2d.width - 150, y: initShootY - 150, w: 150, h: 150, hp: 300, maxHp: 300, speed: 60, type: 'boss', dir: -1 });
   }
-  if (bossSpawned && shootEnemies.length === 0) { alert('🎉 通关！'); backToMenu(); return; }
+  if (bossSpawned && shootEnemies.length === 0) { alert('🎉 通关！'); window.backToMenu(); return; }
 
   ctx.restore();
   document.getElementById('hud-main').innerHTML = `<span style="font-size:26px; font-weight:800; color:#4ea1ff;">${player.hp} HP</span> | 击杀 ${killedCount}/${config.enemyCount}`;
@@ -398,7 +364,13 @@ function animate(now) {
 }
 
 function startGame() {
-  showHUD(); state='playing';
+  document.getElementById('canvas2d').style.display = 'block';
+  document.getElementById('controls').style.display = 'flex';
+  document.getElementById('exit-btn').style.display = 'block';
+  document.getElementById('hud').style.display = 'block';
+  gameBg.style.display = 'block';
+  
+  state='playing';
   document.getElementById('hud-title').textContent = config.title;
   if(config.design_thoughts){ 
       document.getElementById('ai-thoughts').textContent = "💡 主策推演: " + config.design_thoughts; 
@@ -417,7 +389,6 @@ document.getElementById('jump').addEventListener('touchstart', (e)=>{e.preventDe
 document.getElementById('shoot').addEventListener('touchstart', (e)=>{e.preventDefault(); if(state==='playing') player.isShooting=true;});
 document.getElementById('shoot').addEventListener('touchend', (e)=>{e.preventDefault(); player.isShooting=false;});
 
-// 键盘绑定 (方便电脑调试)
 document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowLeft'||e.key==='a')keys.left=true; if(e.key==='ArrowRight'||e.key==='d')keys.right=true; if(e.code==='Space'&&state==='playing'&&player.onGround){e.preventDefault();player.vy=-700;player.onGround=false;} if(e.key==='j'){player.isShooting=true;} });
 document.addEventListener('keyup', (e)=>{ if(e.key==='ArrowLeft'||e.key==='a')keys.left=false; if(e.key==='ArrowRight'||e.key==='d')keys.right=false; if(e.key==='j')player.isShooting=false; });
 
