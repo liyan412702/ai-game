@@ -10,7 +10,7 @@ let keys = { left: false, right: false, shoot: false };
 let canvas, ctx;
 let shootTimer = 0;
 let currentRules = {};
-let cameraX = 0; // 🌟 新增：摄像机坐标
+let cameraX = 0; 
 
 export function initEngine() {
     canvas = document.getElementById('canvas2d');
@@ -33,8 +33,6 @@ export function stopGame() {
 
 export function runGame(config, playerBase64, enemyBase64) {
     state = 'playing';
-    
-    // 🌟 核心修复：强制在显示之后，再获取真实屏幕宽高
     canvas.width = window.innerWidth; 
     canvas.height = window.innerHeight; 
     
@@ -49,29 +47,25 @@ export function runGame(config, playerBase64, enemyBase64) {
     if (playerBase64) playerImgObj.src = playerBase64;
     if (enemyBase64) enemyImgObj.src = enemyBase64;
 
-    const floorY = canvas.height - 80;
+    // 确保地面在屏幕底部往上 120 像素的位置，留出按钮空间
+    const floorY = canvas.height - 120;
     
-    // 1. 地面 (加厚，绝对防穿透)
-    let groundBody = Bodies.rectangle(canvas.width / 2, floorY + 100, canvas.width * 3, 200, { isStatic: true, render: { fillStyle: 'rgba(0, 255, 204, 0.8)' } });
+    // 1. 地面 (宽1000，绝对够大)
+    let groundBody = Bodies.rectangle(0, floorY + 100, 2000, 200, { isStatic: true, render: { fillStyle: '#0a1a2e' } });
     World.add(world, groundBody);
-    entities.push({ type: 'ground', body: groundBody, w: canvas.width * 3, h: 200 });
+    entities.push({ type: 'ground', body: groundBody, w: 2000, h: 200 });
 
-    // 🌟 2. 新增边界墙 (防怪物乱跑掉出世界)
-    let wallLeft = Bodies.rectangle(-50, canvas.height / 2, 100, canvas.height * 2, { isStatic: true });
-    let wallRight = Bodies.rectangle(canvas.width + 50, canvas.height / 2, 100, canvas.height * 2, { isStatic: true });
-    World.add(world, [wallLeft, wallRight]);
-
-    // 3. 主角
-    let playerBody = Bodies.rectangle(100, floorY - 100, 40, 60, { friction: 0, frictionAir: 0.05, restitution: 0, inertia: Infinity, render: { fillStyle: '#4ea1ff' }, label: 'player' });
+    // 2. 主角 (固定在左侧)
+    let playerBody = Bodies.rectangle(100, floorY - 60, 40, 60, { friction: 0, frictionAir: 0.05, restitution: 0, inertia: Infinity, label: 'player' });
     World.add(world, playerBody);
     entities.push({ type: 'player', body: playerBody, w: 40, h: 60 });
 
-    // 4. 怪物 (排队生成)
+    // 3. 怪物 (均匀分布在右侧)
     let enemyCount = config.user_enemyCount || 10;
     for (let i = 0; i < enemyCount; i++) {
-        let ex = canvas.width - 100 - (i % 5) * 60; 
-        let ey = floorY - 80 - Math.floor(i / 5) * 60;
-        let enemyBody = Bodies.rectangle(ex, ey, 40, 40, { friction: 0, inertia: Infinity, render: { fillStyle: '#ff0000' }, label: 'enemy' });
+        let ex = 400 + (i % 5) * 80; 
+        let ey = floorY - 50 - Math.floor(i / 5) * 80;
+        let enemyBody = Bodies.rectangle(ex, ey, 40, 40, { friction: 0, inertia: Infinity, label: 'enemy' });
         World.add(world, enemyBody);
         entities.push({ type: 'enemy', body: enemyBody, w: 40, h: 40, hp: currentRules.enemy_hp || 30 });
     }
@@ -99,14 +93,14 @@ function loop(now) {
             if (keys.right) vx = currentRules.player_speed || 6;
             Body.setVelocity(p.body, { x: vx, y: p.body.velocity.y });
 
-            // 🌟 摄像机跟随玩家平滑移动
             let targetCamX = p.body.position.x - canvas.width / 3;
             if (targetCamX < 0) targetCamX = 0;
             cameraX += (targetCamX - cameraX) * 0.1;
 
             shootTimer -= dt;
             if (keys.shoot && shootTimer <= 0) {
-                let b = Bodies.circle(p.body.position.x + 20, p.body.position.y, 6, { isStatic: false, render: { fillStyle: '#ffff00' }, label: 'bullet' });
+                // 子弹从主角胸部发出
+                let b = Bodies.circle(p.body.position.x + 20, p.body.position.y - 10, 8, { isStatic: false, label: 'bullet' });
                 Body.setVelocity(b, { x: 15, y: 0 }); 
                 World.add(world, b); bullets.push(b);
                 shootTimer = 0.15;
@@ -149,7 +143,6 @@ function loop(now) {
         Engine.update(engine, dt * 1000);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 🌟 渲染器应用摄像机偏移
         ctx.save();
         ctx.translate(-cameraX, 0);
 
@@ -157,12 +150,21 @@ function loop(now) {
             ctx.save();
             ctx.translate(e.body.position.x, e.body.position.y);
             
-            if (e.type === 'player' && playerImgObj.complete) {
-                ctx.globalCompositeOperation = 'screen'; // 滤色去黑底
-                ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
-            } else if (e.type === 'enemy' && enemyImgObj.complete) {
-                ctx.globalCompositeOperation = 'screen';
-                ctx.drawImage(enemyImgObj, -e.w/2, -e.h/2, e.w, e.h);
+            // 🌟 防御性渲染：只有图片完全加载成功才用图片，否则一律画方块，绝对不隐身！
+            if (e.type === 'player') {
+                if (playerImgObj.complete && playerImgObj.naturalWidth > 0) {
+                    ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
+                } else {
+                    ctx.fillStyle = '#00ffff'; // 没图就是亮蓝色方块
+                    ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
+                }
+            } else if (e.type === 'enemy') {
+                if (enemyImgObj.complete && enemyImgObj.naturalWidth > 0) {
+                    ctx.drawImage(enemyImgObj, -e.w/2, -e.h/2, e.w, e.h);
+                } else {
+                    ctx.fillStyle = '#ff0066'; // 没图就是亮红色方块
+                    ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
+                }
             } else {
                 ctx.fillStyle = e.body.render.fillStyle;
                 ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
@@ -171,10 +173,13 @@ function loop(now) {
         });
 
         bullets.forEach(b => {
-            ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffff00'; 
+            ctx.beginPath(); 
+            ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); 
+            ctx.fill();
         });
         
-        ctx.restore(); // 恢复渲染坐标系
+        ctx.restore(); 
     } catch (e) { console.error(e); }
     
     requestAnimationFrame(loop);
