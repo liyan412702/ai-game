@@ -61,3 +61,10 @@ textarea.form-control { height:100px; resize:none; }
 #loading-mask.show { display:flex; }
 .spinner { width:50px; height:50px; border:4px solid rgba(255,255,255,0.1); border-top-color:#00ffcc; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
 @keyframes spin { 100% { transform:rotate(360deg); } }
+
+/* 确保画布和背景正确铺满 */
+#game-bg { position:fixed; inset:0; background:#0a0a1a center/cover no-repeat; z-index:1; display:none; opacity:0.6; pointer-events:none; }
+#canvas2d { position:relative; z-index:2; display:none; width:100%; height:100%; touch-action:none; }
+/* 修复控制按钮遮挡问题 */
+#controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:none; justify-content:space-between; padding:0 16px; z-index:6; pointer-events:none; }
+.pad { display:flex; gap:12px; pointer-events:auto; align-items:center; }
