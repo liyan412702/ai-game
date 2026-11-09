@@ -3,50 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI物理沙盒 v7.1 防卡死版</title>
-<!-- 更换为国内极其稳定的 CDN -->
+<title>AI物理沙盒 架构版</title>
+<!-- 引入外部库和样式 -->
 <script src="https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#050508; font-family: system-ui, sans-serif; user-select:none; color:#fff; }
-  
-  #game-bg { position:fixed; inset:0; background-size:cover; background-position:center; z-index:1; opacity:0.3; display:none; }
-  #canvas2d { position:relative; z-index:2; display:none; width:100%; height:100%; touch-action:none; }
-  
-  .screen { position:fixed; inset:0; z-index:10; overflow-y:auto; display:none; }
-  .screen.active { display:block; }
-  
-  #menu-screen { padding:24px; background:radial-gradient(circle at top, #1a1a3a 0%, #050508 100%); }
-  .header h1 { font-size:28px; font-weight:900; background:linear-gradient(135deg,#00ffff,#8b5cf6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:8px; }
-  .header p { color:#889; font-size:14px; margin-bottom:30px; }
-  
-  #form-screen { padding:24px; background:#0a0a14; }
-  .back-btn { background:none; border:none; color:#889; font-size:14px; margin-bottom:20px; cursor:pointer; }
-  .form-group { margin-bottom:20px; }
-  .form-group label { display:block; font-size:14px; color:#aab; margin-bottom:8px; }
-  .form-control { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:12px; color:#fff; font-size:15px; outline:none; }
-  textarea.form-control { height:80px; resize:none; }
-  
-  #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; font-size:14px; text-shadow:0 1px 3px #000; z-index:5; display:none; }
-  #ai-thoughts { position:fixed; top:calc(60px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; z-index:5; }
-  
-  #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; display:none; }
-  .pad { display:flex; gap:12px; pointer-events:auto; }
-  .btn-ctrl { width:64px; height:64px; border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-size:24px; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); }
-  .btn-ctrl:active { background:rgba(78,161,255,.6); }
-  
-  #loading-mask { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; backdrop-filter:blur(5px); }
-  #loading-mask.show { display:flex; }
-  .spinner { width:50px; height:50px; border:4px solid rgba(255,255,255,0.1); border-top-color:#00ffcc; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
-  @keyframes spin { 100% { transform:rotate(360deg); } }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="menu-screen" class="screen active">
   <div class="header">
     <h1>AI 物理沙盒</h1>
-    <p>输入一句话，生成一个真实的重力世界</p>
+    <p>模块化架构重构版 v1.0</p>
   </div>
   <button class="btn-ctrl" style="width:100%; height:54px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000;" onclick="openForm()">进入造梦空间</button>
 </div>
@@ -54,12 +21,10 @@
 <div id="form-screen" class="screen">
   <button class="back-btn" onclick="backToMenu()">← 返回</button>
   <h2 style="font-size:24px; font-weight:800; margin-bottom:20px; color:#00ffcc;">构建世界蓝图</h2>
-  
   <div class="form-group">
     <label>你想要一个怎样的物理世界？</label>
-    <textarea id="form-story" class="form-control" placeholder="例如：生成一个赛博朋克城市，有一大片平地，主角站在左边，右边有几个异形怪物，中间有一些悬浮的箱子..."></textarea>
+    <textarea id="form-story" class="form-control" placeholder="例如：赛博朋克平地，主角在左边，右边有怪物..."></textarea>
   </div>
-  
   <button class="btn-ctrl" style="width:100%; height:54px; border-radius:16px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000; margin-top:10px;" onclick="generateGame()">✨ 生成物理世界</button>
 </div>
 
@@ -68,15 +33,20 @@
 
 <div id="hud">
   <div id="hud-title" style="font-size:16px; margin-bottom:4px; font-weight:700;">物理沙盒</div>
-  <div id="status" style="margin-top:2px; color:#aab;">重力引擎已启动</div>
+  <div style="margin-top:2px; color:#aab;">重力引擎已启动</div>
 </div>
 <div id="ai-thoughts"></div>
 
 <button onclick="backToMenu()" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; z-index:10; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:6px 12px; border-radius:20px; font-size:12px; display:none;" id="exit-btn">退出</button>
 
 <div id="controls">
-  <div class="pad" id="move-controls"><div class="btn-ctrl" id="left">←</div><div class="btn-ctrl" id="right">→</div></div>
-  <div class="pad" id="action-controls"><div class="btn-ctrl" id="jump">跳</div></div>
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-left">←</div>
+    <div class="btn-ctrl" id="btn-right">→</div>
+  </div>
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-jump">跳跃</div>
+  </div>
 </div>
 
 <div id="loading-mask">
@@ -84,240 +54,7 @@
   <div id="loading-text" style="color:#00ffcc; font-weight:bold;">AI 正在构建物理法则...</div>
 </div>
 
-<script type="module">
-const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
-const { Engine, World, Bodies, Body } = Matter;
-
-let engine, world;
-let entities = []; 
-let config = {};
-let state = 'menu';
-
-let bgImgObj = new Image();
-let playerImgObj = new Image();
-let enemyImgObj = new Image();
-let playerBase64 = null, enemyBase64 = null;
-
-const canvas2d = document.getElementById('canvas2d'), ctx = canvas2d.getContext('2d');
-const gameBg = document.getElementById('game-bg');
-
-function resize2D() { canvas2d.width = innerWidth; canvas2d.height = innerHeight; }
-window.addEventListener('resize', resize2D);
-
-// ================= UI 逻辑 =================
-window.openForm = function() {
-  document.getElementById('menu-screen').classList.remove('active');
-  document.getElementById('form-screen').classList.add('active');
-};
-
-window.backToMenu = function() {
-  document.getElementById('menu-screen').classList.add('active');
-  document.getElementById('form-screen').classList.remove('active');
-  document.getElementById('canvas2d').style.display = 'none';
-  document.getElementById('game-bg').style.display = 'none';
-  document.getElementById('controls').style.display = 'none';
-  document.getElementById('exit-btn').style.display = 'none';
-  document.getElementById('hud').style.display = 'none';
-  document.getElementById('ai-thoughts').style.display = 'none';
-  state = 'menu';
-  if (engine) { Engine.clear(engine); World.clear(world); }
-};
-
-window.generateGame = async function() {
-  const story = document.getElementById('form-story').value || '生成一个赛博朋克平地，有主角和怪物';
-  document.getElementById('form-screen').classList.remove('active');
-  document.getElementById('loading-mask').classList.add('show');
-  
-  try {
-    const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: story }) });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    config = data;
-
-    document.getElementById('loading-text').textContent = 'AI 生成世界背景中...';
-    let bgUrl = await requestZhipuImage(config.bg_prompt);
-    if (bgUrl) gameBg.style.backgroundImage = `url(${bgUrl})`;
-
-    document.getElementById('loading-text').textContent = 'AI 生成主角实体中...';
-    let pUrl = await requestZhipuImage(config.player_prompt);
-    if (pUrl) playerBase64 = await processImageRemoveBg(pUrl);
-
-    document.getElementById('loading-text').textContent = 'AI 生成怪物实体中...';
-    let eUrl = await requestZhipuImage(config.enemy_prompt);
-    if (eUrl) enemyBase64 = await processImageRemoveBg(eUrl);
-
-  } catch(e) { 
-    console.error(e);
-    alert('生成遇到问题，将直接进入简易世界。'); 
-  } finally {
-    document.getElementById('loading-mask').classList.remove('show');
-  }
-  
-  startGame();
-};
-
-async function requestZhipuImage(prompt) {
-  try {
-    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_KEY}` },
-      body: JSON.stringify({ model: 'cogview-3-flash', prompt: prompt, size: '1024x1024' })
-    });
-    const data = await res.json();
-    return (data.data && data.data[0]) ? data.data[0].url : null;
-  } catch(e) { return null; }
-}
-
-// 🌟 核心：加入 5 秒超时熔断的抠图函数
-async function processImageRemoveBg(imageUrl) {
-  return new Promise((resolve) => {
-    let isResolved = false;
-    
-    // 5秒超时熔断机制
-    const timeoutId = setTimeout(() => {
-        if (!isResolved) {
-            isResolved = true;
-            console.warn('抠图代理超时，放弃抠图，直接使用原图');
-            resolve(imageUrl); 
-        }
-    }, 5000);
-
-    const img = new Image();
-    img.crossOrigin = "Anonymous";
-    img.src = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl)}`;
-    
-    img.onload = () => {
-      if (isResolved) return;
-      try {
-        const c = document.createElement('canvas');
-        c.width = img.width; c.height = img.height;
-        const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
-        const imgData = cx.getImageData(0, 0, c.width, c.height); const data = imgData.data;
-        for (let i = 0; i < data.length; i += 4) {
-          if ((data[i] + data[i+1] + data[i+2]) < 150) data[i + 3] = 0;
-        }
-        cx.putImageData(imgData, 0, 0); 
-        isResolved = true;
-        clearTimeout(timeoutId);
-        resolve(c.toDataURL()); 
-      } catch (e) {
-        isResolved = true;
-        clearTimeout(timeoutId);
-        resolve(imageUrl);
-      }
-    };
-    img.onerror = () => {
-        if (!isResolved) {
-            isResolved = true;
-            clearTimeout(timeoutId);
-            resolve(imageUrl);
-        }
-    };
-  });
-}
-
-// ================= 物理沙盒引擎 =================
-function startGame() {
-  document.getElementById('canvas2d').style.display = 'block';
-  document.getElementById('controls').style.display = 'flex';
-  document.getElementById('exit-btn').style.display = 'block';
-  document.getElementById('hud').style.display = 'block';
-  gameBg.style.display = 'block';
-  
-  document.getElementById('hud-title').textContent = config.title || '物理世界';
-  document.getElementById('ai-thoughts').textContent = "💡 架构师: " + config.design_thoughts; 
-  document.getElementById('ai-thoughts').style.display = 'block'; 
-  
-  state='playing';
-  resize2D(); 
-  
-  engine = Engine.create();
-  world = engine.world;
-  engine.gravity.y = 1; 
-  
-  entities = [];
-  
-  if (playerBase64) playerImgObj.src = playerBase64;
-  if (enemyBase64) enemyImgObj.src = enemyBase64;
-
-  // 如果 AI 没给数据，给个保底
-  if (!config.entities || config.entities.length === 0) {
-      config.entities = [
-          { type: "ground", x: innerWidth/2, y: innerHeight - 50, w: innerWidth, h: 40 },
-          { type: "player", x: 100, y: innerHeight - 150, w: 40, h: 60 },
-          { type: "enemy", x: innerWidth - 100, y: innerHeight - 150, w: 40, h: 40 }
-      ];
-  }
-
-  config.entities.forEach(e => {
-    let body;
-    if (e.type === 'ground') {
-      body = Bodies.rectangle(e.x, e.y, e.w, e.h, { isStatic: true, render: { fillStyle: '#00ffcc' } });
-    } else if (e.type === 'obstacle') {
-      body = Bodies.rectangle(e.x, e.y, e.w, e.h, { isStatic: true, render: { fillStyle: '#ff0066' } });
-    } else if (e.type === 'player') {
-      body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0.05, restitution: 0, render: { fillStyle: '#4ea1ff' } });
-    } else if (e.type === 'enemy') {
-      body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0.05, render: { fillStyle: '#ff0000' } });
-    }
-    if (body) {
-      World.add(world, body);
-      entities.push({ type: e.type, body: body, w: e.w, h: e.h });
-    }
-  });
-
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
-}
-
-let lastTime = 0;
-function loop(now) {
-  if (state !== 'playing') return;
-  const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
-  
-  Engine.update(engine, dt * 1000);
-  ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-  
-  entities.forEach(e => {
-    ctx.save();
-    ctx.translate(e.body.position.x, e.body.position.y);
-    ctx.rotate(e.body.angle);
-    
-    if (e.type === 'player' && playerImgObj.complete && playerImgObj.naturalWidth > 0) {
-        ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
-    } else if (e.type === 'enemy' && enemyImgObj.complete && enemyImgObj.naturalWidth > 0) {
-        ctx.drawImage(enemyImgObj, -e.w/2, -e.h/2, e.w, e.h);
-    } else {
-        ctx.fillStyle = e.body.render.fillStyle;
-        ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
-    }
-    ctx.restore();
-  });
-  
-  requestAnimationFrame(loop);
-}
-
-// 控件绑定
-document.getElementById('left').addEventListener('touchstart', (e) => {
-  const p = entities.find(e => e.type === 'player'); if(p) Body.setVelocity(p.body, { x: -5, y: p.body.velocity.y });
-});
-document.getElementById('right').addEventListener('touchstart', (e) => {
-  const p = entities.find(e => e.type === 'player'); if(p) Body.setVelocity(p.body, { x: 5, y: p.body.velocity.y });
-});
-document.getElementById('jump').addEventListener('touchstart', (e) => {
-  const p = entities.find(e => e.type === 'player'); if(p && Math.abs(p.body.velocity.y) < 0.1) Body.setVelocity(p.body, { x: p.body.velocity.x, y: -12 });
-});
-document.addEventListener('keydown', (e) => {
-    if (state !== 'playing') return;
-    const p = entities.find(e => e.type === 'player');
-    if (!p) return;
-    if (e.key === 'ArrowLeft' || e.key === 'a') Body.setVelocity(p.body, { x: -5, y: p.body.velocity.y });
-    if (e.key === 'ArrowRight' || e.key === 'd') Body.setVelocity(p.body, { x: 5, y: p.body.velocity.y });
-    if ((e.code === 'Space' || e.key === 'ArrowUp') && Math.abs(p.body.velocity.y) < 0.1) {
-      Body.setVelocity(p.body, { x: p.body.velocity.x, y: -12 });
-    }
-});
-
-resize2D();
-</script>
+<!-- 启动主程序 -->
+<script type="module" src="app.js"></script>
 </body>
 </html>
