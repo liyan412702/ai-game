@@ -1,6 +1,3 @@
-import { createEntity } from './entity-factory.js';
-import { initRules, updateRuleState } from './rule-system.js';
-
 const { Engine, World, Bodies, Body } = Matter;
 
 let engine, world;
@@ -37,32 +34,29 @@ export function runGame(config, playerBase64, enemyBase64) {
     engine.gravity.y = 1; 
     entities = []; bullets = [];
     
-    initRules(config.game_rules);
     currentRules = config.game_rules || {};
     
-    // 🌟 核心：用滤色模式渲染，如果图片没抠干净，黑底会直接透明
     if (playerBase64) playerImgObj.src = playerBase64;
     if (enemyBase64) enemyImgObj.src = enemyBase64;
 
     const floorY = canvas.height - 80;
     
-    // 1. 地面
-    let groundBody = createEntity('ground', canvas.width / 2, floorY + 20, canvas.width, 40);
+    // 地面
+    let groundBody = Bodies.rectangle(canvas.width / 2, floorY + 20, canvas.width, 40, { isStatic: true, render: { fillStyle: 'rgba(0, 255, 204, 0.8)' } });
     World.add(world, groundBody);
     entities.push({ type: 'ground', body: groundBody, w: canvas.width, h: 40 });
 
-    // 2. 主角
-    let playerBody = createEntity('player', 100, floorY - 100, 40, 60);
+    // 主角
+    let playerBody = Bodies.rectangle(100, floorY - 100, 40, 60, { friction: 0, frictionAir: 0.05, restitution: 0, inertia: Infinity, render: { fillStyle: '#4ea1ff' }, label: 'player' });
     World.add(world, playerBody);
     entities.push({ type: 'player', body: playerBody, w: 40, h: 60 });
 
-    // 3. 怪物 (数量严格遵守用户表单输入)
+    // 怪物
     let enemyCount = config.user_enemyCount || 10;
     for (let i = 0; i < enemyCount; i++) {
-        // 让怪物在右侧分散开来
         let ex = canvas.width - 50 - (i % 5) * 60; 
         let ey = floorY - 80 - Math.floor(i / 5) * 60;
-        let enemyBody = createEntity('enemy', ex, ey, 40, 40);
+        let enemyBody = Bodies.rectangle(ex, ey, 40, 40, { friction: 0, inertia: Infinity, render: { fillStyle: '#ff0000' }, label: 'enemy' });
         World.add(world, enemyBody);
         entities.push({ type: 'enemy', body: enemyBody, w: 40, h: 40, hp: currentRules.enemy_hp || 30 });
     }
@@ -100,7 +94,6 @@ function loop(now) {
 
             enemies.forEach(en => {
                 let dir = p.body.position.x > en.body.position.x ? 1 : -1;
-                // 严格按照 AI 的策划行动
                 if (currentRules.enemy_behavior === 'fly') {
                     Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 5 }); 
                 } else {
@@ -109,15 +102,29 @@ function loop(now) {
             });
         }
 
-        updateRuleState(
-            entities, bullets, p ? p.body : null,
-            (enemyNum) => {
-                let hud = document.getElementById('hud');
-                if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title')?.textContent || '游戏'}</div><div style="color:#00ffcc;">敌人剩余: ${enemyNum}</div>`;
-            },
-            () => { alert("💀 你阵亡了！"); document.getElementById('exit-btn').click(); },
-            () => { alert("🎉 恭喜你！成功通关！"); document.getElementById('exit-btn').click(); }
-        );
+        // 子弹打怪物
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i];
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                let en = enemies[j];
+                if (Math.hypot(b.position.x - en.body.position.x, b.position.y - en.body.position.y) < 40) {
+                    en.hp -= 10;
+                    World.remove(world, b); bullets.splice(i, 1);
+                    if (en.hp <= 0) { World.remove(world, en.body); entities.splice(entities.indexOf(en), 1); }
+                    break;
+                }
+            }
+        }
+
+        if (enemies.length === 0) {
+            state = 'menu';
+            alert('🎉 恭喜通关！');
+            document.getElementById('exit-btn').click();
+            return;
+        }
+
+        let hud = document.getElementById('hud');
+        if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title')?.textContent || '游戏'}</div><div style="color:#00ffcc;">敌人剩余: ${enemies.length}</div>`;
 
         Engine.update(engine, dt * 1000);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -127,8 +134,7 @@ function loop(now) {
             ctx.translate(e.body.position.x, e.body.position.y);
             
             if (e.type === 'player' && playerImgObj.complete) {
-                // 🌟 使用 screen 滤色模式，完美解决残留黑边！
-                ctx.globalCompositeOperation = 'screen'; 
+                ctx.globalCompositeOperation = 'screen'; // 滤色去黑底
                 ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
             } else if (e.type === 'enemy' && enemyImgObj.complete) {
                 ctx.globalCompositeOperation = 'screen';
@@ -143,9 +149,7 @@ function loop(now) {
         bullets.forEach(b => {
             ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
         });
-    } catch (e) {
-        console.error(e);
-    }
+    } catch (e) { console.error(e); }
     
     requestAnimationFrame(loop);
 }
