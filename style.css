@@ -21,12 +21,14 @@ textarea.form-control { height:80px; resize:none; }
 #hud { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; font-size:14px; text-shadow:0 1px 3px #000; z-index:5; display:none; }
 #ai-thoughts { position:fixed; top:calc(60px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; z-index:5; }
 
+/* 只要替换你 style.css 里 #controls 相关的部分 */
 #controls { position:fixed; left:0; right:0; bottom:calc(10px + env(safe-area-inset-bottom)); display:flex; justify-content:space-between; padding:0 16px; z-index:6; display:none; }
-.pad { display:flex; gap:12px; pointer-events:auto; }
+.pad { display:flex; gap:12px; pointer-events:auto; align-items:center;}
 .btn-ctrl { border-radius:50%; border:1.5px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); cursor:pointer; }
 .btn-ctrl:active { background:rgba(78,161,255,.6); }
 #btn-left, #btn-right { width:80px; height:80px; font-size:30px; }
 #btn-jump { width:90px; height:90px; font-size:18px; background:rgba(0,255,204,0.2); border-color:#00ffcc; }
+#btn-shoot { width:80px; height:80px; font-size:18px; background:rgba(255,0,102,0.2); border-color:#ff0066; }
 
 #loading-mask { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center; backdrop-filter:blur(5px); }
 #loading-mask.show { display:flex; }
