@@ -34,24 +34,41 @@ export function runGame(config, playerBase64, enemyBase64) {
     engine.gravity.y = 1; 
     entities = [];
     bullets = [];
-    gameRules = config.game_rules || { player_hp: 100, enemy_hp: 30 };
+    gameRules = config.game_rules || { enemy_hp: 30 };
     
     if (playerBase64) playerImgObj.src = playerBase64;
     if (enemyBase64) enemyImgObj.src = enemyBase64;
 
-    config.entities.forEach(e => {
-        let body;
-        // 🌟 锁定旋转 inertia: Infinity，让怪物永远站直
-        if (e.type === 'ground') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { isStatic: true, render: { fillStyle: 'rgba(0, 255, 204, 0.8)' } });
-        else if (e.type === 'obstacle') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { isStatic: true, render: { fillStyle: '#1a1a2e' } }); // 把粉色方块换成暗色实体
-        else if (e.type === 'player') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0, frictionAir: 0.05, restitution: 0, inertia: Infinity, render: { fillStyle: '#4ea1ff' }, label: 'player' });
-        else if (e.type === 'enemy') body = Bodies.rectangle(e.x, e.y, e.w, e.h, { friction: 0, inertia: Infinity, render: { fillStyle: '#ff0000' }, label: 'enemy' });
-        
-        if (body) {
-            World.add(world, body);
-            entities.push({ type: e.type, body: body, w: e.w, h: e.h, hp: e.type === 'enemy' ? gameRules.enemy_hp : 0 });
-        }
+    // 🌟 核心修复：不再使用 AI 给的绝对坐标，直接根据当前屏幕尺寸重新计算！
+    const floorY = canvas.height - 80;
+    
+    // 1. 强制生成地面 (全屏宽度)
+    let groundBody = Bodies.rectangle(canvas.width / 2, floorY + 20, canvas.width, 40, { 
+        isStatic: true, 
+        render: { fillStyle: 'rgba(0, 255, 204, 0.6)' } 
     });
+    World.add(world, groundBody);
+    entities.push({ type: 'ground', body: groundBody, w: canvas.width, h: 40 });
+
+    // 2. 强制生成主角 (在屏幕左侧)
+    let playerBody = Bodies.rectangle(100, floorY - 100, 40, 60, { 
+        friction: 0, frictionAir: 0.05, restitution: 0, inertia: Infinity, 
+        render: { fillStyle: '#4ea1ff' }, label: 'player' 
+    });
+    World.add(world, playerBody);
+    entities.push({ type: 'player', body: playerBody, w: 40, h: 60 });
+
+    // 3. 根据 AI 想要的数量，在屏幕右侧均匀生成怪物
+    const enemyCount = config.entities.filter(e => e.type === 'enemy').length || 3;
+    for (let i = 0; i < enemyCount; i++) {
+        let ex = canvas.width - 150 - (i * 80); // 从右往左排开
+        let enemyBody = Bodies.rectangle(ex, floorY - 100, 40, 40, { 
+            friction: 0, inertia: Infinity, 
+            render: { fillStyle: '#ff0000' }, label: 'enemy' 
+        });
+        World.add(world, enemyBody);
+        entities.push({ type: 'enemy', body: enemyBody, w: 40, h: 40, hp: gameRules.enemy_hp });
+    }
 
     requestAnimationFrame(loop);
 }
@@ -69,46 +86,44 @@ function loop(now) {
     const p = entities.find(e => e.type === 'player');
     const enemies = entities.filter(e => e.type === 'enemy');
 
-    // 1. 胜利条件判定 (AI 设定的 kill_all)
     if (enemies.length === 0) {
         state = 'menu';
-        alert('🎉 恭喜通关！你完成了 AI 设计的游戏《' + document.getElementById('hud-title').textContent + '》');
+        alert('🎉 恭喜通关！你消灭了所有敌人！');
         document.getElementById('exit-btn').click();
         return;
     }
 
     if (p) {
-        // 2. 玩家移动
         let vx = 0;
-        if (keys.left) vx = -6; if (keys.right) vx = 6;
+        if (keys.left) vx = -6; 
+        if (keys.right) vx = 6;
         Body.setVelocity(p.body, { x: vx, y: p.body.velocity.y });
 
-        // 3. 玩家射击
+        // 射击逻辑
         shootTimer -= dt;
         if (keys.shoot && shootTimer <= 0) {
-            let b = Bodies.circle(p.body.position.x, p.body.position.y, 5, { isStatic: false, render: { fillStyle: '#ffff00' }, label: 'bullet' });
+            let b = Bodies.circle(p.body.position.x + 20, p.body.position.y, 6, { isStatic: false, render: { fillStyle: '#ffff00' }, label: 'bullet' });
             Body.setVelocity(b, { x: 15, y: 0 }); 
-            Body.setAngularVelocity(b, 0);
             World.add(world, b);
             bullets.push(b);
-            shootTimer = 0.2;
+            shootTimer = 0.15;
         }
 
-        // 4. 怪物 AI (执行 AI 设定的 chase 追击)
+        // 怪物 AI 追击
         enemies.forEach(en => {
             let dir = p.body.position.x > en.body.position.x ? 1 : -1;
             Body.setVelocity(en.body, { x: dir * 3, y: en.body.velocity.y });
         });
     }
 
-    // 5. 子弹与怪物碰撞
+    // 子弹碰撞
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
         for (let j = enemies.length - 1; j >= 0; j--) {
             let en = enemies[j];
             let dist = Math.hypot(b.position.x - en.body.position.x, b.position.y - en.body.position.y);
-            if (dist < 35) {
-                en.hp -= 10; // 每次扣 10 点血
+            if (dist < 40) {
+                en.hp -= 10; 
                 World.remove(world, b); bullets.splice(i, 1);
                 if (en.hp <= 0) {
                     World.remove(world, en.body); entities.splice(entities.indexOf(en), 1);
@@ -122,13 +137,12 @@ function loop(now) {
     Engine.update(engine, dt * 1000);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // 6. 渲染
+    // 绘制实体
     entities.forEach(e => {
         ctx.save();
         ctx.translate(e.body.position.x, e.body.position.y);
         
         if (e.type === 'player' && playerImgObj.complete) {
-            // 如果不抠图，默认用 multiply 叠底去黑
             ctx.globalCompositeOperation = 'multiply'; 
             ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
         } else if (e.type === 'enemy' && enemyImgObj.complete) {
@@ -141,9 +155,10 @@ function loop(now) {
         ctx.restore();
     });
 
+    // 绘制子弹
     bullets.forEach(b => {
         ctx.fillStyle = '#ffff00';
-        ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
     });
     
     requestAnimationFrame(loop);
@@ -164,9 +179,19 @@ function bindControls() {
 
     const bL = document.getElementById('btn-left'), bR = document.getElementById('btn-right'), bJ = document.getElementById('btn-jump'), bS = document.getElementById('btn-shoot');
     if(bL) {
-        bL.addEventListener('touchstart', (e) => { e.preventDefault(); keys.left = true; }); bL.addEventListener('touchend', () => keys.left = false);
-        bR.addEventListener('touchstart', (e) => { e.preventDefault(); keys.right = true; }); bR.addEventListener('touchend', () => keys.right = false);
-        bJ.addEventListener('touchstart', (e) => { e.preventDefault(); doJump(); });
-        bS.addEventListener('touchstart', (e) => { e.preventDefault(); keys.shoot = true; }); bS.addEventListener('touchend', () => keys.shoot = false);
+        // 统一使用 pointerdown/pointerup 完美兼容鼠标和触屏
+        bL.addEventListener('pointerdown', (e) => { e.preventDefault(); keys.left = true; }); 
+        bL.addEventListener('pointerup', () => keys.left = false);
+        bL.addEventListener('pointerleave', () => keys.left = false);
+
+        bR.addEventListener('pointerdown', (e) => { e.preventDefault(); keys.right = true; }); 
+        bR.addEventListener('pointerup', () => keys.right = false);
+        bR.addEventListener('pointerleave', () => keys.right = false);
+
+        bJ.addEventListener('pointerdown', (e) => { e.preventDefault(); doJump(); });
+
+        bS.addEventListener('pointerdown', (e) => { e.preventDefault(); keys.shoot = true; }); 
+        bS.addEventListener('pointerup', () => keys.shoot = false);
+        bS.addEventListener('pointerleave', () => keys.shoot = false);
     }
 }
