@@ -1,11 +1,13 @@
-import { generateWorldConfig } from './ai-service.js';
-import { initEngine, stopGame, runGame } from './physics-engine.js';
+import { generateWorldConfig } from './ai-service.js?v=10';
+import { initEngine, stopGame, runGame } from './physics-engine.js?v=10';
 
 try { initEngine(); } catch(e) { alert("物理引擎加载失败：" + e.message); }
 
 let tempConfig = null;
+let currentCategory = 'shooter';
 
 window.openForm = function(type, title) {
+    currentCategory = type;
     document.getElementById('form-title').textContent = '定制 ' + title;
     switchScreen('form-screen');
 };
@@ -27,8 +29,10 @@ function switchScreen(id) {
 
 window.generateGame = async function() {
     const theme = document.getElementById('form-theme').value;
+    const enemyCount = document.getElementById('form-enemyCount').value;
+    const enemyHp = document.getElementById('form-enemyHp').value;
     const story = document.getElementById('form-story').value;
-    const prompt = `主题：${theme}。需求：${story}`;
+    const prompt = `游戏分类：${currentCategory}。主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。剧情细节：${story}`;
 
     switchScreen(null);
     document.getElementById('loading-mask').classList.add('show');
@@ -36,13 +40,10 @@ window.generateGame = async function() {
 
     try {
         tempConfig = await generateWorldConfig(prompt);
+        tempConfig.user_enemyCount = parseInt(enemyCount) || 10;
         
-        // 预览页只展示 AI 的策划思路
         document.getElementById('preview-title').textContent = tempConfig.title || '未命名世界';
         document.getElementById('preview-thoughts').innerHTML = "💡 主策推演: " + tempConfig.design_thoughts;
-        
-        // 隐藏背景图区域，因为我们现在纯代码渲染
-        document.getElementById('preview-img').style.display = 'none';
         
         switchScreen('preview-screen');
         saveHistory(prompt, tempConfig);
@@ -57,6 +58,7 @@ window.generateGame = async function() {
 window.startPlay = function() {
     switchScreen(null);
     document.getElementById('canvas2d').style.display = 'block';
+    document.getElementById('game-bg').style.display = 'block';
     document.getElementById('controls').style.display = 'flex';
     document.getElementById('exit-btn').style.display = 'block';
     document.getElementById('hud').style.display = 'block';
@@ -65,7 +67,6 @@ window.startPlay = function() {
     runGame(tempConfig);
 };
 
-// --- 历史记录 ---
 function saveHistory(prompt, config) {
     let history = JSON.parse(localStorage.getItem('game_history') || '[]');
     history.unshift({ prompt, config, time: new Date().toLocaleString() });
@@ -96,6 +97,5 @@ window.loadHistory = function(idx) {
     tempConfig = item.config;
     document.getElementById('preview-title').textContent = tempConfig.title || '历史世界';
     document.getElementById('preview-thoughts').innerHTML = "💡 历史回放: " + tempConfig.design_thoughts;
-    document.getElementById('preview-img').style.display = 'none';
     switchScreen('preview-screen');
 };
