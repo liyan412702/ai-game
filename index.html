@@ -3,39 +3,85 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI物理沙盒 架构版</title>
+<title>AI造梦器 v8.0</title>
 <script src="https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+<!-- 大厅 -->
 <div id="menu-screen" class="screen active">
   <div class="header">
-    <h1>AI 物理沙盒</h1>
-    <p>模块化架构重构版 v1.1</p>
+    <h1>AI 游戏造梦器</h1>
+    <p>选择类型，定制你的专属游戏</p>
   </div>
-  <button class="btn-ctrl" style="width:100%; height:54px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000;" onclick="openForm()">进入造梦空间</button>
+  <div class="category-grid">
+    <div class="category-card" onclick="openForm('shooter', '动作射击')">
+      <span class="icon">🚀</span><div class="title">动作射击</div>
+    </div>
+    <div class="category-card" onclick="openForm('tower', '策略塔防')">
+      <span class="icon">🛡️</span><div class="title">策略塔防</div>
+    </div>
+    <div class="category-card" onclick="openForm('parkour', '极速跑酷')">
+      <span class="icon">🏃</span><div class="title">极速跑酷</div>
+    </div>
+    <div class="category-card" onclick="openForm('dressup', '二次元换装')">
+      <span class="icon">👗</span><div class="title">二次元换装</div>
+    </div>
+  </div>
+  <button class="btn-main" onclick="showHistory()" style="background:#333;">📜 查看历史记录</button>
 </div>
 
+<!-- 配置表单 -->
 <div id="form-screen" class="screen">
-  <button class="back-btn" onclick="backToMenu()">← 返回</button>
-  <h2 style="font-size:24px; font-weight:800; margin-bottom:20px; color:#00ffcc;">构建世界蓝图</h2>
+  <button class="back-btn" onclick="backToMenu()">← 返回大厅</button>
+  <h2 id="form-title" class="page-title">定制游戏</h2>
   <div class="form-group">
-    <label>你想要一个怎样的物理世界？</label>
-    <textarea id="form-story" class="form-control" placeholder="例如：类似吸血鬼幸存者的怪物潮，或者魂斗罗..."></textarea>
+    <label>游戏主题 / 风格</label>
+    <input type="text" id="form-theme" class="form-control" value="赛博朋克霓虹都市">
   </div>
-  <button class="btn-ctrl" style="width:100%; height:54px; border-radius:16px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000; margin-top:10px;" onclick="generateGame()">✨ 生成物理世界</button>
+  <div class="row-2">
+    <div class="form-group">
+      <label>怪物数量</label>
+      <input type="number" id="form-enemyCount" class="form-control" value="10">
+    </div>
+    <div class="form-group">
+      <label>怪物血量</label>
+      <input type="number" id="form-enemyHp" class="form-control" value="30">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>剧情与玩法描述</label>
+    <textarea id="form-story" class="form-control" placeholder="例如：主角需要消灭所有怪物，怪物会飞..."></textarea>
+  </div>
+  <button class="btn-main" onclick="generateGame()">✨ 生成游戏</button>
 </div>
 
+<!-- 生成结果预览页 -->
+<div id="preview-screen" class="screen">
+  <h2 class="page-title" style="text-align:center;">🎉 游戏已生成！</h2>
+  <div id="preview-thoughts" style="color:#00ffcc; font-size:13px; margin-bottom:20px; padding:10px; background:rgba(0,0,0,0.5); border-radius:8px;"></div>
+  <div style="width:100%; height:200px; background:#000; border-radius:12px; border:2px solid #4ea1ff; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:20px;">
+    <img id="preview-img" style="max-width:100%; max-height:100%; object-fit:contain;" src="">
+  </div>
+  <button class="btn-main" onclick="startPlay()" style="background:#00ffcc; color:#000;">▶ 开始游戏</button>
+  <button class="btn-main" onclick="backToMenu()" style="background:#333; margin-top:10px;">返回大厅</button>
+</div>
+
+<!-- 历史记录页 -->
+<div id="history-screen" class="screen">
+  <button class="back-btn" onclick="backToMenu()">← 返回大厅</button>
+  <h2 class="page-title">历史生成记录</h2>
+  <div id="history-list"></div>
+</div>
+
+<!-- 游戏画面 -->
 <div id="game-bg"></div>
 <canvas id="canvas2d"></canvas>
-
-<div id="hud" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; z-index:5; display:none; color:#fff; text-shadow:0 1px 3px #000; font-size:16px;">
+<div id="hud">
     <div id="hud-title" style="font-weight:700; margin-bottom:4px;">AI造梦器</div>
-    <div style="color:#00ffcc;">敌人剩余: 0 | 分数: 0</div>
+    <div style="color:#00ffcc;">敌人剩余: 0</div>
 </div>
-
-<div id="ai-thoughts" style="position:fixed; top:calc(80px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; z-index:5;"></div>
 
 <button onclick="backToMenu()" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; z-index:10; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:6px 12px; border-radius:20px; font-size:12px; display:none;" id="exit-btn">退出</button>
 
@@ -52,7 +98,7 @@
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="color:#00ffcc; font-weight:bold;">AI 正在构建物理法则...</div>
+  <div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策推演中...</div>
 </div>
 
 <script type="module" src="app.js"></script>
