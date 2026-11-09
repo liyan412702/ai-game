@@ -7,20 +7,17 @@ export default async function onRequest({ request }) {
 
   if (request.method !== 'POST') return jsonResponse({ error: 'Method Not Allowed' }, 405);
 
-  // 0. 环境变量检查：没配 key 直接报明确错误，不要让用户以为是"网络波动"
   const API_KEY = process.env.DEEPSEEK_API_KEY;
   if (!API_KEY) {
-    return jsonResponse({ error: '服务端未配置 DEEPSEEK_API_KEY，请联系管理员' }, 500);
+    return jsonResponse({ error: '服务端未配置 DEEPSEEK_API_KEY' }, 500);
   }
 
   try {
     const body = await request.json();
-    // 1. 截断超长 prompt，防止刷 token
-    const prompt = String(body.prompt || '默认射击游戏').slice(0, 2000);
+    const prompt = String(body.prompt || '赛博朋克横版射击').slice(0, 2000);
 
     const controller = new AbortController();
-    // 2. 超时放宽到 22s；请确保 EdgeOne 控制台里该函数超时 ≥ 30s，否则平台会先杀请求，catch 都跑不到
-    const timeoutId = setTimeout(() => controller.abort(), 22000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
@@ -34,86 +31,67 @@ export default async function onRequest({ request }) {
         messages: [
           {
             role: 'system',
-            content: `你是顶级游戏总监。必须输出纯JSON（不要markdown代码块），字段如下：
+            content: `你是一个顶级2D游戏关卡设计师。请根据用户需求，输出纯JSON（不要markdown），严格按照以下结构生成数据：
 {
   "title": "游戏名称",
-  "design_thoughts": "一句话说明玩法设计核心",
-  "bg_prompt": "英文背景提示词，横版游戏背景，宽银幕构图，不含任何文字",
-  "player_prompt": "英文角色外观提示词，全身、居中、正面视角。严禁出现background/black/white/shadow等背景相关词，背景由前端统一处理",
-  "enemy_prompt": "英文怪物外观提示词，全身、居中、正面视角。同样严禁出现任何背景相关词",
-  "game_rules": {"win_condition": "kill_all", "player_speed": 6, "player_jump": -14, "enemy_hp": 30, "enemy_behavior": "walk"},
-  "entities": []
-}`
+  "design_thoughts": "一句话说明玩法设计",
+  "bg_prompt": "横版游戏背景英文提示词，宽银幕",
+  "player_prompt": "游戏主角外观英文提示词",
+  "enemy_prompt": "游戏怪物外观英文提示词",
+  "map": { "width": 3000, "height": 800, "gravity": 1.2 },
+  "player": { "x": 100, "y": 500, "width": 40, "height": 60, "speed": 6, "jump": -15, "hp": 100 },
+  "platforms": [
+    { "x": 0, "y": 700, "width": 3000, "height": 100 }
+  ],
+  "enemies": [
+    {
+      "x": 800, "y": 600, "width": 40, "height": 40, "hp": 30,
+      "behavior": "patrol", 
+      "speed": 4,
+      "attack": "melee",
+      "attack_rate": 2
+    }
+  ],
+  "win_condition": { "type": "kill_all" }
+}
+规则：
+1. behavior 只能选："patrol"(巡逻), "chase"(追击), "fly_sine"(正弦飞行)。
+2. attack 只能选："melee"(近战触碰伤害), "shoot"(发射子弹), "none"(无攻击)。
+3. 如果生成平台跳跃游戏，请添加多个悬空平台到 platforms 数组里。
+4. 平台坐标以大地图左上角为原点。务必保证玩家和敌人出生在平台上方。`
           },
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' }
       })
     });
-
     clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      console.error('DeepSeek HTTP', response.status, errText);
-      return jsonResponse({ error: `大模型接口异常(${response.status})，请重试` }, 500);
-    }
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('返回为空');
 
-    // 3. 空 content 判空
-    if (!content) {
-      console.error('DeepSeek 返回空 content', JSON.stringify(data).slice(0, 300));
-      return jsonResponse({ error: 'AI 返回内容为空，请重试' }, 500);
-    }
-
-    // 4. strip markdown 包裹后解析
-    const cleaned = content.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (e) {
-      console.error('JSON 解析失败', cleaned.slice(0, 300));
-      return jsonResponse({ error: 'AI 输出格式异常，请重试' }, 500);
-    }
-
-    // 5. 关键字段兜底补齐，保证前端拿到的 config 一定能跑
-    parsed.title = parsed.title || '未命名世界';
-    parsed.design_thoughts = parsed.design_thoughts || 'AI 自动生成';
-    parsed.bg_prompt = parsed.bg_prompt || 'sci-fi horizontal game background';
-    parsed.player_prompt = parsed.player_prompt || 'cyberpunk hero, full body, front view';
-    parsed.enemy_prompt = parsed.enemy_prompt || 'alien creature, full body, front view';
-    parsed.game_rules = parsed.game_rules || {};
-    parsed.game_rules.win_condition = parsed.game_rules.win_condition || 'kill_all';
-    parsed.game_rules.player_speed = Number(parsed.game_rules.player_speed) || 6;
-    parsed.game_rules.player_jump = Number(parsed.game_rules.player_jump) || -14;
-    parsed.game_rules.enemy_hp = Number(parsed.game_rules.enemy_hp) || 30;
-    parsed.game_rules.enemy_behavior = parsed.game_rules.enemy_behavior || 'walk';
-    parsed.entities = Array.isArray(parsed.entities) ? parsed.entities : [];
-
+    const cleaned = content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+    
+    // 确保关键字段存在
+    if(!parsed.map) parsed.map = { width: 3000, height: 800, gravity: 1 };
+    if(!parsed.platforms) parsed.platforms = [{ x: 0, y: parsed.map.height - 50, width: parsed.map.width, height: 50 }];
+    
     return jsonResponse(parsed);
 
   } catch (e) {
-    console.error('generate 异常', e?.name, e?.message);
-
-    // 6. 兜底：不返回 error 字段！否则前端 generateWorldConfig 里 `if (data.error) throw` 会把兜底丢掉
+    console.error('generate error', e);
+    // 兜底配置：一个绝对能跑的简易跳跃测试
     return jsonResponse({
-      fallback: true,
-      fallback_reason: e?.name === 'AbortError' ? '生成超时' : '服务异常',
-      title: '紧急迫降',
-      design_thoughts: '系统检测到网络波动，已启用安全模式。',
-      bg_prompt: 'sci-fi neon city horizontal game background, wide screen, no text',
-      player_prompt: 'cyberpunk soldier, full body, front view, centered',
-      enemy_prompt: 'alien monster, full body, front view, centered',
-      game_rules: {
-        win_condition: 'kill_all',
-        player_speed: 6,
-        player_jump: -14,
-        enemy_hp: 30,
-        enemy_behavior: 'walk'
-      },
-      entities: []
+      fallback: true, fallback_reason: '网络波动，已启用安全模式',
+      title: "紧急迫降", design_thoughts: "测试关卡",
+      bg_prompt: "sci-fi background", player_prompt: "cyberpunk soldier", enemy_prompt: "alien",
+      map: { width: 2000, height: 800, gravity: 1.2 },
+      player: { x: 100, y: 400, width: 40, height: 60, speed: 6, jump: -15, hp: 100 },
+      platforms: [{ x: 0, y: 700, width: 2000, height: 100 }],
+      enemies: [{ x: 800, y: 600, width: 40, height: 40, hp: 30, behavior: "chase", speed: 3, attack: "melee", attack_rate: 1 }],
+      win_condition: { type: "kill_all" }
     }, 200);
   }
 }
