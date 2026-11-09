@@ -1,1 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>AI造梦器 v9.1</title>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<link rel="stylesheet" href="style.css?v=10">
+</head>
+<body>
 
+<div id="menu-screen" class="screen active">
+  <div class="header">
+    <h1>AI 游戏造梦器</h1>
+    <p>选择类型，定制你的专属世界</p>
+  </div>
+  <div class="category-grid">
+    <div class="category-card" onclick="openForm('shooter', '动作射击')">
+      <span class="icon">🚀</span><div class="title">动作射击</div>
+    </div>
+    <div class="category-card" onclick="openForm('tower', '策略塔防')">
+      <span class="icon">🛡️</span><div class="title">策略塔防</div>
+    </div>
+  </div>
+  <button class="btn-main" onclick="showHistory()" style="background:#333;">📜 查看历史记录</button>
+</div>
+
+<div id="form-screen" class="screen">
+  <button class="back-btn" onclick="backToMenu()">← 返回大厅</button>
+  <h2 id="form-title" class="page-title">定制游戏</h2>
+  <div class="form-group">
+    <label>游戏主题 (cyber, forest, space)</label>
+    <input type="text" id="form-theme" class="form-control" value="cyber">
+  </div>
+  <div class="row-2">
+    <div class="form-group">
+      <label>怪物数量</label>
+      <input type="number" id="form-enemyCount" class="form-control" value="10">
+    </div>
+    <div class="form-group">
+      <label>怪物血量</label>
+      <input type="number" id="form-enemyHp" class="form-control" value="30">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>玩法描述 (AI 会根据这个推演)</label>
+    <textarea id="form-story" class="form-control" placeholder="例如：主角需要消灭所有怪物，怪物会飞..."></textarea>
+  </div>
+  <button class="btn-main" onclick="generateGame()">✨ 生成世界</button>
+</div>
+
+<div id="preview-screen" class="screen">
+  <h2 id="preview-title" class="page-title" style="text-align:center;">🎉 世界已生成！</h2>
+  <div id="preview-thoughts" style="color:#00ffcc; font-size:14px; margin-bottom:30px; padding:15px; background:rgba(255,255,255,0.05); border-radius:8px; border-left:4px solid #00ffcc;"></div>
+  <button class="btn-main" onclick="startPlay()" style="background:#00ffcc; color:#000;">▶ 进入世界</button>
+  <button class="btn-main" onclick="backToMenu()" style="background:#333; margin-top:10px;">返回大厅</button>
+</div>
+
+<div id="history-screen" class="screen">
+  <button class="back-btn" onclick="backToMenu()">← 返回大厅</button>
+  <h2 class="page-title">历史生成记录</h2>
+  <div id="history-list"></div>
+</div>
+
+<div id="game-bg"></div>
+<canvas id="canvas2d"></canvas>
+<div id="hud">
+    <div id="hud-title" style="font-weight:700; margin-bottom:4px;">AI造梦器</div>
+    <div style="color:#00ffcc;">敌人剩余: 0</div>
+</div>
+
+<button onclick="backToMenu()" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; z-index:10; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:6px 12px; border-radius:20px; font-size:12px; display:none;" id="exit-btn">退出</button>
+
+<div id="controls">
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-left">←</div>
+    <div class="btn-ctrl" id="btn-right">→</div>
+  </div>
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-shoot">射击</div>
+    <div class="btn-ctrl" id="btn-jump">跳跃</div>
+  </div>
+</div>
+
+<div id="loading-mask">
+  <div class="spinner"></div>
+  <div id="loading-text" style="color:#00ffcc; font-weight:bold;">主策推演中...</div>
+</div>
+
+<script type="module" src="app.js?v=10"></script>
+</body>
+</html>
