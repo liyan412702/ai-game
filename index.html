@@ -1,4 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>AI物理沙盒 架构版</title>
+<script src="https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="menu-screen" class="screen active">
+  <div class="header">
+    <h1>AI 物理沙盒</h1>
+    <p>模块化架构重构版 v1.1</p>
+  </div>
+  <button class="btn-ctrl" style="width:100%; height:54px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000;" onclick="openForm()">进入造梦空间</button>
+</div>
+
+<div id="form-screen" class="screen">
+  <button class="back-btn" onclick="backToMenu()">← 返回</button>
+  <h2 style="font-size:24px; font-weight:800; margin-bottom:20px; color:#00ffcc;">构建世界蓝图</h2>
+  <div class="form-group">
+    <label>你想要一个怎样的物理世界？</label>
+    <textarea id="form-story" class="form-control" placeholder="例如：类似吸血鬼幸存者的怪物潮，或者魂斗罗..."></textarea>
+  </div>
+  <button class="btn-ctrl" style="width:100%; height:54px; border-radius:16px; background:linear-gradient(135deg,#00ffff,#8b5cf6); border:none; font-size:18px; font-weight:800; color:#000; margin-top:10px;" onclick="generateGame()">✨ 生成物理世界</button>
+</div>
+
+<div id="game-bg"></div>
+<canvas id="canvas2d"></canvas>
+
 <div id="hud" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); left:14px; z-index:5; display:none; color:#fff; text-shadow:0 1px 3px #000; font-size:16px;">
     <div id="hud-title" style="font-weight:700; margin-bottom:4px;">AI造梦器</div>
-    <div style="color:#00ffcc;">敌人剩余: 0 | 金币: 0</div>
+    <div style="color:#00ffcc;">敌人剩余: 0 | 分数: 0</div>
 </div>
+
+<div id="ai-thoughts" style="position:fixed; top:calc(80px + env(safe-area-inset-top)); left:14px; right:14px; color:#00ffcc; font-size:12px; background:rgba(0,0,0,0.8); padding:8px; border-radius:6px; border-left:3px solid #00ffcc; display:none; z-index:5;"></div>
+
+<button onclick="backToMenu()" style="position:fixed; top:calc(12px + env(safe-area-inset-top)); right:14px; z-index:10; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:6px 12px; border-radius:20px; font-size:12px; display:none;" id="exit-btn">退出</button>
+
+<div id="controls">
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-left">←</div>
+    <div class="btn-ctrl" id="btn-right">→</div>
+  </div>
+  <div class="pad">
+    <div class="btn-ctrl" id="btn-shoot">射击</div>
+    <div class="btn-ctrl" id="btn-jump">跳跃</div>
+  </div>
+</div>
+
+<div id="loading-mask">
+  <div class="spinner"></div>
+  <div id="loading-text" style="color:#00ffcc; font-weight:bold;">AI 正在构建物理法则...</div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
