@@ -1,14 +1,25 @@
 const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
 
 export async function generateWorldConfig(story) {
-    const res = await fetch('/api/generate', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ prompt: story }) 
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    return data;
+    try {
+        const res = await fetch('/api/generate', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ prompt: story }) 
+        });
+        
+        // 🚨 核心防御：检查返回的是不是 JSON
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new Error("云端服务器返回了非 JSON 格式（可能超时崩溃了）。");
+        }
+
+        const data = await res.json();
+        if (data.error && !data.title) throw new Error(data.error);
+        return data;
+    } catch(e) {
+        throw new Error("生成失败：" + e.message);
+    }
 }
 
 export async function requestZhipuImage(prompt) {
@@ -27,9 +38,7 @@ export async function processImageRemoveBg(imageUrl) {
     return new Promise((resolve) => {
         if (!imageUrl) return resolve(null);
         let isResolved = false;
-        const timeoutId = setTimeout(() => {
-            if (!isResolved) { isResolved = true; resolve(imageUrl); }
-        }, 5000);
+        const timeoutId = setTimeout(() => { if (!isResolved) { isResolved = true; resolve(imageUrl); } }, 5000);
 
         const img = new Image();
         img.crossOrigin = "Anonymous";
@@ -38,8 +47,7 @@ export async function processImageRemoveBg(imageUrl) {
         img.onload = () => {
             if (isResolved) return;
             try {
-                const c = document.createElement('canvas');
-                c.width = img.width; c.height = img.height;
+                const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
                 const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
                 const imgData = cx.getImageData(0, 0, c.width, c.height); const data = imgData.data;
                 for (let i = 0; i < data.length; i += 4) {
