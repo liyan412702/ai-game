@@ -1,4 +1,3 @@
-// 🌟 必须放在最顶端！
 import { createEntity } from './entity-factory.js';
 import { initRules, updateRuleState } from './rule-system.js';
 
@@ -41,6 +40,7 @@ export function runGame(config, playerBase64, enemyBase64) {
     initRules(config.game_rules);
     currentRules = config.game_rules || {};
     
+    // 🌟 核心：用滤色模式渲染，如果图片没抠干净，黑底会直接透明
     if (playerBase64) playerImgObj.src = playerBase64;
     if (enemyBase64) enemyImgObj.src = enemyBase64;
 
@@ -56,11 +56,13 @@ export function runGame(config, playerBase64, enemyBase64) {
     World.add(world, playerBody);
     entities.push({ type: 'player', body: playerBody, w: 40, h: 60 });
 
-    // 3. 怪物
-    let enemyCount = config.entities.filter(e => e.type === 'enemy').length || 3;
+    // 3. 怪物 (数量严格遵守用户表单输入)
+    let enemyCount = config.user_enemyCount || 10;
     for (let i = 0; i < enemyCount; i++) {
-        let ex = canvas.width - 150 - (i * 80);
-        let enemyBody = createEntity('enemy', ex, floorY - 100, 40, 40);
+        // 让怪物在右侧分散开来
+        let ex = canvas.width - 50 - (i % 5) * 60; 
+        let ey = floorY - 80 - Math.floor(i / 5) * 60;
+        let enemyBody = createEntity('enemy', ex, ey, 40, 40);
         World.add(world, enemyBody);
         entities.push({ type: 'enemy', body: enemyBody, w: 40, h: 40, hp: currentRules.enemy_hp || 30 });
     }
@@ -76,7 +78,6 @@ function doJump() {
 let lastTime = 0;
 function loop(now) {
     if (state !== 'playing') return;
-    // 🌟 核心防御：用 try-catch 包裹，即使某一帧报错，也不会导致整个游戏彻底卡死
     try {
         const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
         
@@ -99,6 +100,7 @@ function loop(now) {
 
             enemies.forEach(en => {
                 let dir = p.body.position.x > en.body.position.x ? 1 : -1;
+                // 严格按照 AI 的策划行动
                 if (currentRules.enemy_behavior === 'fly') {
                     Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 5 }); 
                 } else {
@@ -109,17 +111,12 @@ function loop(now) {
 
         updateRuleState(
             entities, bullets, p ? p.body : null,
-            (enemyNum, score) => {
+            (enemyNum) => {
                 let hud = document.getElementById('hud');
-                if(hud) {
-                    // 🌟 安全读取，如果 hud-title 为空，给个默认名字
-                    let titleEl = document.getElementById('hud-title');
-                    let titleText = titleEl ? titleEl.textContent : '物理沙盒';
-                    hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${titleText}</div><div style="color:#00ffcc;">敌人剩余: ${enemyNum} | 分数: ${score}</div>`;
-                }
+                if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title')?.textContent || '游戏'}</div><div style="color:#00ffcc;">敌人剩余: ${enemyNum}</div>`;
             },
             () => { alert("💀 你阵亡了！"); document.getElementById('exit-btn').click(); },
-            () => { alert("🎉 恭喜你完成了 AI 设计的《" + (document.getElementById('hud-title')?.textContent || '游戏') + "》"); document.getElementById('exit-btn').click(); }
+            () => { alert("🎉 恭喜你！成功通关！"); document.getElementById('exit-btn').click(); }
         );
 
         Engine.update(engine, dt * 1000);
@@ -130,15 +127,15 @@ function loop(now) {
             ctx.translate(e.body.position.x, e.body.position.y);
             
             if (e.type === 'player' && playerImgObj.complete) {
-                ctx.globalCompositeOperation = 'multiply'; 
+                // 🌟 使用 screen 滤色模式，完美解决残留黑边！
+                ctx.globalCompositeOperation = 'screen'; 
                 ctx.drawImage(playerImgObj, -e.w/2, -e.h/2, e.w, e.h);
             } else if (e.type === 'enemy' && enemyImgObj.complete) {
-                ctx.globalCompositeOperation = 'multiply';
+                ctx.globalCompositeOperation = 'screen';
                 ctx.drawImage(enemyImgObj, -e.w/2, -e.h/2, e.w, e.h);
             } else {
                 ctx.fillStyle = e.body.render.fillStyle;
-                if(e.type === 'coin') { ctx.beginPath(); ctx.arc(0,0,e.w/2,0,Math.PI*2); ctx.fill(); }
-                else ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
+                ctx.fillRect(-e.w/2, -e.h/2, e.w, e.h);
             }
             ctx.restore();
         });
@@ -147,7 +144,7 @@ function loop(now) {
             ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
         });
     } catch (e) {
-        console.error("引擎渲染发生错误:", e);
+        console.error(e);
     }
     
     requestAnimationFrame(loop);
@@ -168,9 +165,9 @@ function bindControls() {
 
     const bL = document.getElementById('btn-left'), bR = document.getElementById('btn-right'), bJ = document.getElementById('btn-jump'), bS = document.getElementById('btn-shoot');
     if(bL) {
-        bL.addEventListener('pointerdown', (e) => { keys.left = true; }); bL.addEventListener('pointerup', () => keys.left = false);
-        bR.addEventListener('pointerdown', (e) => { keys.right = true; }); bR.addEventListener('pointerup', () => keys.right = false);
-        bJ.addEventListener('pointerdown', (e) => { doJump(); });
-        bS.addEventListener('pointerdown', (e) => { keys.shoot = true; }); bS.addEventListener('pointerup', () => keys.shoot = false);
+        bL.addEventListener('pointerdown', () => keys.left = true); bL.addEventListener('pointerup', () => keys.left = false);
+        bR.addEventListener('pointerdown', () => keys.right = true); bR.addEventListener('pointerup', () => keys.right = false);
+        bJ.addEventListener('pointerdown', () => doJump());
+        bS.addEventListener('pointerdown', () => keys.shoot = true); bS.addEventListener('pointerup', () => keys.shoot = false);
     }
 }
