@@ -1,12 +1,7 @@
 import { generateWorldConfig, requestZhipuImage, processImageRemoveBg } from './ai-service.js';
 import { initEngine, stopGame, runGame } from './physics-engine.js';
 
-// 核心防御：用 try-catch 包裹初始化
-try {
-    initEngine();
-} catch(e) {
-    alert("物理引擎加载失败，请检查网络或刷新重试：" + e.message);
-}
+try { initEngine(); } catch(e) { alert("物理引擎加载失败：" + e.message); }
 
 let currentCategory = 'shooter';
 let tempConfig = null;
@@ -39,7 +34,7 @@ window.generateGame = async function() {
     const enemyCount = document.getElementById('form-enemyCount').value;
     const enemyHp = document.getElementById('form-enemyHp').value;
     const story = document.getElementById('form-story').value;
-    const prompt = `游戏分类：${currentCategory}。主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。剧情细节：${story}`;
+    const prompt = `游戏分类：${currentCategory}。主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。剧情：${story}`;
 
     switchScreen(null);
     document.getElementById('loading-mask').classList.add('show');
@@ -66,10 +61,11 @@ window.generateGame = async function() {
         document.getElementById('preview-thoughts').innerHTML = "💡 主策推演: " + tempConfig.design_thoughts;
         switchScreen('preview-screen');
         
-        saveHistory(prompt, tempConfig);
+        // 保存历史（把图片 URL 一并存下）
+        saveHistory(prompt, tempConfig, bgUrl, pUrl, eUrl);
 
     } catch(e) {
-        alert('生成失败: ' + e.message);
+        alert(e.message);
         backToMenu();
     } finally {
         document.getElementById('loading-mask').classList.remove('show');
@@ -87,11 +83,27 @@ window.startPlay = function() {
     runGame(tempConfig, tempPlayerBase64, tempEnemyBase64);
 };
 
-function saveHistory(prompt, config) {
+// ================= 真正的历史记录 =================
+function saveHistory(prompt, config, bgUrl, pUrl, eUrl) {
     let history = JSON.parse(localStorage.getItem('game_history') || '[]');
-    history.unshift({ prompt, config, time: new Date().toLocaleString() });
+    // 注意：Base64 太大，localStorage 存不下，所以这里存原图 URL。展示时可能带黑底，但速度极快。
+    history.unshift({ 
+        prompt, 
+        config, 
+        bgUrl, 
+        pUrl, 
+        eUrl,
+        time: new Date().toLocaleString() 
+    });
     if (history.length > 10) history.pop();
-    localStorage.setItem('game_history', JSON.stringify(history));
+    
+    try {
+        localStorage.setItem('game_history', JSON.stringify(history));
+    } catch(e) {
+        console.warn("本地存储已满，最旧记录被清理");
+        history.pop();
+        localStorage.setItem('game_history', JSON.stringify(history));
+    }
 }
 
 window.showHistory = function() {
@@ -114,9 +126,16 @@ window.loadHistory = function(idx) {
     let history = JSON.parse(localStorage.getItem('game_history') || '[]');
     const item = history[idx];
     if(!item) return;
-    document.getElementById('form-theme').value = "重新生成"; 
-    document.getElementById('form-enemyCount').value = item.config.user_enemyCount || 10;
-    document.getElementById('form-enemyHp').value = item.config.game_rules.enemy_hp || 30;
-    document.getElementById('form-story').value = item.prompt;
-    generateGame();
+
+    // 🌟 核心：直接从本地缓存恢复，不请求网络！
+    tempConfig = item.config;
+    document.getElementById('game-bg').style.backgroundImage = `url(${item.bgUrl})`;
+    document.getElementById('preview-img').src = item.bgUrl;
+    
+    // 因为没经过抠图，直接用原 URL 渲染（带黑底但速度快）
+    tempPlayerBase64 = item.pUrl;
+    tempEnemyBase64 = item.eUrl;
+    
+    document.getElementById('preview-thoughts').innerHTML = "💡 历史记录回放: " + tempConfig.design_thoughts;
+    switchScreen('preview-screen');
 };
