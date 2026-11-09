@@ -1,6 +1,8 @@
-const { Engine, World, Bodies, Body } = Matter;
+// 🌟 必须放在最顶端！
 import { createEntity } from './entity-factory.js';
 import { initRules, updateRuleState } from './rule-system.js';
+
+const { Engine, World, Bodies, Body } = Matter;
 
 let engine, world;
 let entities = []; 
@@ -42,20 +44,20 @@ export function runGame(config, playerBase64, enemyBase64) {
     if (playerBase64) playerImgObj.src = playerBase64;
     if (enemyBase64) enemyImgObj.src = enemyBase64;
 
-    // 自动排版：不管 AI 怎么给，确保地面铺满，主角在左，敌人在右
     const floorY = canvas.height - 80;
+    
+    // 1. 强制铺满地面
     let groundBody = createEntity('ground', canvas.width / 2, floorY + 20, canvas.width, 40);
     World.add(world, groundBody);
     entities.push({ type: 'ground', body: groundBody, w: canvas.width, h: 40 });
 
+    // 2. 强制生成主角
     let playerBody = createEntity('player', 100, floorY - 100, 40, 60);
     World.add(world, playerBody);
     entities.push({ type: 'player', body: playerBody, w: 40, h: 60 });
 
-    let enemiesFromAI = config.entities.filter(e => e.type === 'enemy');
-    let enemyCount = enemiesFromAI.length > 0 ? enemiesFromAI.length : 3;
-    
-    // 怪物生成
+    // 3. 怪物按屏幕排版
+    let enemyCount = config.entities.filter(e => e.type === 'enemy').length || 3;
     for (let i = 0; i < enemyCount; i++) {
         let ex = canvas.width - 150 - (i * 80);
         let enemyBody = createEntity('enemy', ex, floorY - 100, 40, 40);
@@ -63,7 +65,7 @@ export function runGame(config, playerBase64, enemyBase64) {
         entities.push({ type: 'enemy', body: enemyBody, w: 40, h: 40, hp: currentRules.enemy_hp || 30 });
     }
 
-    // 如果 AI 设定要收集金币，生成金币
+    // 4. 如果 AI 要收集金币
     if (currentRules.win_condition === 'collect_coins') {
         for (let i = 0; i < (currentRules.target_value || 5); i++) {
             let coinBody = createEntity('coin', 200 + i * 80, floorY - 150, 20, 20);
@@ -102,23 +104,21 @@ function loop(now) {
             shootTimer = 0.15;
         }
 
-        // AI 定义的怪物行为
         enemies.forEach(en => {
             let dir = p.body.position.x > en.body.position.x ? 1 : -1;
             if (currentRules.enemy_behavior === 'fly') {
-                Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 5 }); // 飞怪，上下浮动
+                Body.setVelocity(en.body, { x: dir * 3, y: Math.sin(now / 200) * 5 }); 
             } else {
-                Body.setVelocity(en.body, { x: dir * 3, y: en.body.velocity.y }); // 走地怪追击
+                Body.setVelocity(en.body, { x: dir * 3, y: en.body.velocity.y }); 
             }
         });
     }
 
-    // 调用规则系统
     updateRuleState(
         entities, bullets, p ? p.body : null,
         (enemyNum, score) => {
             let hud = document.getElementById('hud');
-            if(hud) hud.innerHTML = `敌人剩余: ${enemyNum} | 金币: ${score}`;
+            if(hud) hud.innerHTML = `<div style="font-weight:700; margin-bottom:4px;">${document.getElementById('hud-title').textContent}</div><div style="color:#00ffcc;">敌人剩余: ${enemyNum} | 分数: ${score}</div>`;
         },
         () => { alert("💀 你阵亡了！"); document.getElementById('exit-btn').click(); },
         () => { alert("🎉 恭喜你完成了 AI 设计的《" + document.getElementById('hud-title').textContent + "》"); document.getElementById('exit-btn').click(); }
