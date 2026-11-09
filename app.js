@@ -1,15 +1,16 @@
-import { generateWorldConfig } from './ai-service.js';
+import { generateWorldConfig, requestZhipuImage, processImageRemoveBg } from './ai-service.js';
 import { initEngine, stopGame, runGame } from './physics-engine.js';
 
-try { initEngine(); } catch(e) { console.error("物理引擎加载失败：" + e.message); }
+try { initEngine(); } catch(e) { alert("物理引擎加载失败：" + e.message); }
 
-let tempConfig = null;
 let currentCategory = 'shooter';
+let tempConfig = null;
+let tempPlayerBase64 = null;
+let tempEnemyBase64 = null;
 
 window.openForm = function(type, title) {
     currentCategory = type;
-    const formTitle = document.getElementById('form-title');
-    if(formTitle) formTitle.textContent = '定制 ' + title;
+    document.getElementById('form-title').textContent = '定制 ' + title;
     switchScreen('form-screen');
 };
 
@@ -33,23 +34,43 @@ window.generateGame = async function() {
     const enemyCount = document.getElementById('form-enemyCount').value;
     const enemyHp = document.getElementById('form-enemyHp').value;
     const story = document.getElementById('form-story').value;
-    const prompt = `游戏分类：${currentCategory}。主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。剧情细节：${story}`;
+    const prompt = `游戏分类：${currentCategory}。主题：${theme}。怪物数量：${enemyCount}。怪物血量：${enemyHp}。剧情：${story}`;
 
     switchScreen(null);
     document.getElementById('loading-mask').classList.add('show');
-    document.getElementById('loading-text').textContent = 'AI 正在构建世界法则...';
+    document.getElementById('loading-text').textContent = 'AI 正在推演玩法机制...';
 
     try {
         tempConfig = await generateWorldConfig(prompt);
         tempConfig.user_enemyCount = parseInt(enemyCount) || 10;
+        if(!tempConfig.game_rules) tempConfig.game_rules = {};
+        tempConfig.game_rules.enemy_hp = parseInt(enemyHp) || 30;
+
+        document.getElementById('loading-text').textContent = 'AI 绘制背景中...';
+        let bgUrl = await requestZhipuImage(tempConfig.bg_prompt);
         
-        document.getElementById('preview-title').textContent = tempConfig.title || '未命名世界';
+        // 🌟 防御机制：如果 AI 没生图，用个深色渐变色兜底，绝对不会纯黑
+        if (bgUrl) {
+            document.getElementById('preview-img').src = bgUrl;
+            document.getElementById('game-bg').style.backgroundImage = `url(${bgUrl})`;
+        } else {
+            document.getElementById('game-bg').style.background = 'linear-gradient(to bottom, #0f172a, #1e1b4b)';
+        }
+
+        document.getElementById('loading-text').textContent = 'AI 绘制角色...';
+        let pUrl = await requestZhipuImage(tempConfig.player_prompt);
+        tempPlayerBase64 = await processImageRemoveBg(pUrl);
+        
+        let eUrl = await requestZhipuImage(tempConfig.enemy_prompt);
+        tempEnemyBase64 = await processImageRemoveBg(eUrl);
+
         document.getElementById('preview-thoughts').innerHTML = "💡 主策推演: " + tempConfig.design_thoughts;
-        
         switchScreen('preview-screen');
+        
         saveHistory(prompt, tempConfig);
+
     } catch(e) {
-        alert(e.message);
+        alert('生成失败: ' + e.message);
         backToMenu();
     } finally {
         document.getElementById('loading-mask').classList.remove('show');
@@ -63,18 +84,15 @@ window.startPlay = function() {
     document.getElementById('controls').style.display = 'flex';
     document.getElementById('exit-btn').style.display = 'block';
     document.getElementById('hud').style.display = 'block';
-    
-    const hudTitle = document.getElementById('hud-title');
-    if(hudTitle) hudTitle.textContent = tempConfig.title || 'AI造梦器';
-    
-    runGame(tempConfig);
+    document.getElementById('hud-title').textContent = tempConfig.title;
+    runGame(tempConfig, tempPlayerBase64, tempEnemyBase64);
 };
 
 function saveHistory(prompt, config) {
     let history = JSON.parse(localStorage.getItem('game_history') || '[]');
     history.unshift({ prompt, config, time: new Date().toLocaleString() });
     if (history.length > 10) history.pop();
-    try { localStorage.setItem('game_history', JSON.stringify(history)); } catch(e) {}
+    localStorage.setItem('game_history', JSON.stringify(history));
 }
 
 window.showHistory = function() {
@@ -97,8 +115,9 @@ window.loadHistory = function(idx) {
     let history = JSON.parse(localStorage.getItem('game_history') || '[]');
     const item = history[idx];
     if(!item) return;
-    tempConfig = item.config;
-    document.getElementById('preview-title').textContent = tempConfig.title || '历史世界';
-    document.getElementById('preview-thoughts').innerHTML = "💡 历史回放: " + tempConfig.design_thoughts;
-    switchScreen('preview-screen');
+    document.getElementById('form-theme').value = "重新生成"; 
+    document.getElementById('form-enemyCount').value = item.config.user_enemyCount || 10;
+    document.getElementById('form-enemyHp').value = item.config.game_rules.enemy_hp || 30;
+    document.getElementById('form-story').value = item.prompt;
+    generateGame();
 };
