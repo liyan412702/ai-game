@@ -50,6 +50,14 @@ window.generateGame = async function () {
   try {
     // 1. 规则（失败直接抛出，因为后面全部依赖它）
     tempConfig = await generateWorldConfig(prompt);
+    // 插入这段：判断是否触发了兜底
+if (tempConfig.fallback) {
+    console.warn('已启用兜底配置：', tempConfig.fallback_reason);
+    // 可以选择弹窗提示用户，或者把提示写进 loading 里
+    setTimeout(() => {
+        alert(`⚠️ ${tempConfig.fallback_reason || '网络波动'}，已为您启用安全模式配置。`);
+    }, 100);
+}
     if (!tempConfig || typeof tempConfig !== 'object') throw new Error('AI 返回规则为空');
     tempConfig.user_enemyCount = enemyCount;
     if (!tempConfig.game_rules) tempConfig.game_rules = {};
