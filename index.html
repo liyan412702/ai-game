@@ -88,12 +88,13 @@
 </div>
 
 <div id="preview-screen" class="screen">
-  <h2 class="page-title" style="text-align:center;">🎉 游戏已生成！</h2>
-  <div id="preview-thoughts" style="color:#00ffcc; font-size:13px; margin-bottom:20px; padding:10px; background:rgba(0,0,0,0.5); border-radius:8px;"></div>
-  <div style="width:100%; height:200px; background:#000; border-radius:12px; border:2px solid #4ea1ff; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:20px;">
-    <img id="preview-img" style="max-width:100%; max-height:100%; object-fit:contain;" src="">
-  </div>
-  <button class="btn-main" onclick="startPlay()" style="background:#00ffcc; color:#000;">▶ 开始游戏</button>
+  <h2 id="preview-title" class="page-title" style="text-align:center;">🎉 世界已生成！</h2>
+  <div id="preview-thoughts" style="color:#00ffcc; font-size:14px; margin-bottom:30px; padding:15px; background:rgba(255,255,255,0.05); border-radius:8px; border-left:4px solid #00ffcc;"></div>
+  
+  <!-- 去掉了原来的图片预览，纯代码渲染不需要 -->
+  <img id="preview-img" style="display:none;">
+
+  <button class="btn-main" onclick="startPlay()" style="background:#00ffcc; color:#000;">▶ 进入世界</button>
   <button class="btn-main" onclick="backToMenu()" style="background:#333; margin-top:10px;">返回大厅</button>
 </div>
 
