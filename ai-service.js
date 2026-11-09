@@ -1,62 +1,66 @@
-const ZHIPU_KEY = '0872c4e54b384de19de2081c4d87e7f0.wqkFwvMWAQfbrLpz';
+export default async function onRequest({ request }) {
+  const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+  if (request.method !== 'POST') return jsonResponse({ error: 'Method Not Allowed' }, 405);
 
-export async function generateWorldConfig(story) {
-    try {
-        const res = await fetch('/api/generate', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ prompt: story }) 
-        });
-        
-        // 🚨 核心防御：检查返回的是不是 JSON
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-            throw new Error("云端服务器返回了非 JSON 格式（可能超时崩溃了）。");
-        }
+  try {
+    const body = await request.json();
+    const prompt = body.prompt || '默认世界';
+    
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}` },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { 
+            role: 'system', 
+            content: `你是顶级游戏制作人。现在，你不写代码，也不分游戏类型，而是直接设计一个“通用物理世界蓝图”。
+根据用户的需求，你可以设计任何玩法（射击、塔防、平台跳跃、大逃杀等）。
 
-        const data = await res.json();
-        if (data.error && !data.title) throw new Error(data.error);
-        return data;
-    } catch(e) {
-        throw new Error("生成失败：" + e.message);
-    }
+【世界蓝图规则】：
+1. 必须包含地面（platform）。
+2. 必须包含主角（player）。
+3. 根据需求，生成敌人（enemy_chase 陆地追击，enemy_fly 空中浮动）。
+4. 如果用户要收集或塔防，生成静态金币（coin）或防御塔（tower）。
+5. 你的设计思路（design_thoughts）必须解释你安排了什么机制。
+
+输出纯 JSON，格式如下：
+{
+  "title": "游戏名称",
+  "design_thoughts": "我为你设计的机制是...",
+  "theme": "cyber", // 只能是 cyber(霓虹赛博), forest(丛林), space(太空)
+  "camera_follow": true, // 相机是否跟随主角
+  "gravity": 1, // 世界重力
+  "entities": [
+    {"type": "platform", "x": 400, "y": 580, "w": 800, "h": 40},
+    {"type": "player", "x": 100, "y": 450, "w": 40, "h": 60},
+    {"type": "enemy_chase", "x": 600, "y": 500, "w": 40, "h": 40},
+    {"type": "enemy_fly", "x": 700, "y": 300, "w": 40, "h": 40},
+    {"type": "coin", "x": 300, "y": 400, "w": 20, "h": 20}
+  ]
 }
-
-export async function requestZhipuImage(prompt) {
-    try {
-        const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_KEY}` },
-            body: JSON.stringify({ model: 'cogview-3-flash', prompt: prompt, size: '1024x1024' })
-        });
-        const data = await res.json();
-        return (data.data && data.data[0]) ? data.data[0].url : null;
-    } catch(e) { return null; }
-}
-
-export async function processImageRemoveBg(imageUrl) {
-    return new Promise((resolve) => {
-        if (!imageUrl) return resolve(null);
-        let isResolved = false;
-        const timeoutId = setTimeout(() => { if (!isResolved) { isResolved = true; resolve(imageUrl); } }, 5000);
-
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.src = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl)}`;
-        
-        img.onload = () => {
-            if (isResolved) return;
-            try {
-                const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-                const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
-                const imgData = cx.getImageData(0, 0, c.width, c.height); const data = imgData.data;
-                for (let i = 0; i < data.length; i += 4) {
-                    if ((data[i] + data[i+1] + data[i+2]) < 150) data[i + 3] = 0;
-                }
-                cx.putImageData(imgData, 0, 0); 
-                isResolved = true; clearTimeout(timeoutId); resolve(c.toDataURL()); 
-            } catch (e) { isResolved = true; clearTimeout(timeoutId); resolve(imageUrl); }
-        };
-        img.onerror = () => { if (!isResolved) { isResolved = true; clearTimeout(timeoutId); resolve(imageUrl); } };
+请确保坐标尽量合理，玩家和怪物不要重叠。不要输出多余文字！` 
+          },
+          { role: 'user', content: prompt }
+        ],
+        response_format: { type: 'json_object' }
+      })
     });
+
+    const data = await response.json();
+    return jsonResponse(JSON.parse(data.choices[0].message.content));
+  } catch (e) {
+    // 终极兜底：如果 AI 挂了，强行返回一个默认射击世界，保证能玩！
+    return jsonResponse({ 
+        title: "紧急迫降", design_thoughts: "大模型拥堵，已启动内置测试关卡。", 
+        theme: "cyber", camera_follow: true, gravity: 1,
+        entities: [
+            {"type": "platform", "x": 400, "y": 580, "w": 800, "h": 40},
+            {"type": "player", "x": 100, "y": 450, "w": 40, "h": 60},
+            {"type": "enemy_chase", "x": 600, "y": 500, "w": 40, "h": 40},
+            {"type": "enemy_chase", "x": 700, "y": 500, "w": 40, "h": 40},
+            {"type": "coin", "x": 300, "y": 400, "w": 20, "h": 20}
+        ]
+    });
+  }
 }
